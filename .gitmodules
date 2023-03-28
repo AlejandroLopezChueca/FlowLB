@@ -1,0 +1,3 @@
+[submodule "dependencies/lean-vtk"]
+	path = dependencies/lean-vtk
+	url = https://github.com/mmorse1217/lean-vtk
