@@ -4,10 +4,11 @@
 //#include "cuda/lbm_kernel.cuh"
 
 #include "runCalculations.h"
-#include "geometry/createGeometry.h"
+//#include "geometry/createMesh.h"
 
-int main(){
-  FLB::createGeometry();
+int main()
+{
   FLB::runCalculations();
+  //FLB::Mesh mesh;
   return 0;
 }
