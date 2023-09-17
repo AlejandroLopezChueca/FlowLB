@@ -1,10 +1,34 @@
-
 target_sources(graphics
   PUBLIC
-  ${CMAKE_CURRENT_LIST_DIR}/renderer2D.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/renderer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/rendererAPI.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/window.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/buffer.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/vertexArray.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/shader.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/camera.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/cameraController.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/texture.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/frameBuffer.cpp
   PUBLIC
-  ${CMAKE_CURRENT_LIST_DIR}/renderer2D.h)
+  ${CMAKE_CURRENT_LIST_DIR}/renderer.h
+  ${CMAKE_CURRENT_LIST_DIR}/rendererAPI.h
+  ${CMAKE_CURRENT_LIST_DIR}/window.h
+  ${CMAKE_CURRENT_LIST_DIR}/buffer.h
+  ${CMAKE_CURRENT_LIST_DIR}/vertexArray.h
+  ${CMAKE_CURRENT_LIST_DIR}/shader.h
+  ${CMAKE_CURRENT_LIST_DIR}/camera.h
+  ${CMAKE_CURRENT_LIST_DIR}/cameraController.h
+  ${CMAKE_CURRENT_LIST_DIR}/texture.h
+  ${CMAKE_CURRENT_LIST_DIR}/colorMaps.h
+  ${CMAKE_CURRENT_LIST_DIR}/frameBuffer.h)
 
-  target_include_directories(graphics PUBLIC ${CMAKE_CURRENT_LIST_DIR}
-  ${CMAKE_SOURCE_DIR}/src/io)
+  target_include_directories(graphics 
+    PUBLIC
+      ${CMAKE_CURRENT_LIST_DIR}
+      ${CMAKE_SOURCE_DIR}/dependencies/glad/include
+      ${CMAKE_SOURCE_DIR}/dependencies/glfw_3_3_8/include
+      ${CMAKE_SOURCE_DIR}/dependencies/fltk
+      ${CMAKE_SOURCE_DIR}/dependencies/glm
+      ${CMAKE_SOURCE_DIR}/src)
 

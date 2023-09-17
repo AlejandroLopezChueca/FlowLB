@@ -1,13 +1,20 @@
 
 target_sources(io
   PUBLIC
-  ${CMAKE_CURRENT_LIST_DIR}/VTUWriter.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/writer.cpp
     ${CMAKE_CURRENT_LIST_DIR}/reader.cpp
   PUBLIC
-    ${CMAKE_CURRENT_LIST_DIR}/VTUWriter.h
+    ${CMAKE_CURRENT_LIST_DIR}/writer.h
     ${CMAKE_CURRENT_LIST_DIR}/reader.h)
 
-  target_include_directories(io PUBLIC ${CMAKE_CURRENT_LIST_DIR}
-  ${CMAKE_SOURCE_DIR}/src/io)
+target_include_directories(io
+  PUBLIC 
+    ${CMAKE_CURRENT_LIST_DIR}
+    #${CMAKE_SOURCE_DIR}/dependencies/lean-vtk/include
+    ${CMAKE_SOURCE_DIR}/dependencies/fltk
+    ${CMAKE_SOURCE_DIR}/dependencies/glm
+    ${CMAKE_SOURCE_DIR}/src)
+
+#target_link_libraries(io PRIVATE LeanVTK)
 
 

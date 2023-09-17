@@ -1,0 +1,22 @@
+
+
+#include "rendererAPI.h"
+#include "OpenGL/OpenGLRendererAPI.h"
+#include <cstdint>
+
+// default API
+FLB::API FLB::RendererAPI::s_API = FLB::API::NONE;
+
+std::unique_ptr<FLB::RendererAPI> FLB::RendererAPI::create(uint32_t indices[4])
+{
+  switch (s_API) 
+  {
+    case FLB::API::OPENGL:
+      return std::make_unique<FLB::OpenGLRendererAPI>(indices);
+    case FLB::API::NONE:
+      return nullptr; 
+  }
+
+}
+
+

@@ -1,14 +1,18 @@
 
 target_sources(main_src
   PUBLIC
-  ${CMAKE_CURRENT_LIST_DIR}/runCalculations.cpp
+  #${CMAKE_CURRENT_LIST_DIR}/mainProcesses.cpp
   ${CMAKE_CURRENT_LIST_DIR}/utils.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/initData.cpp
   PUBLIC
-  ${CMAKE_CURRENT_LIST_DIR}/runCalculations.h
-  ${CMAKE_CURRENT_LIST_DIR}/utils.h)
+  #${CMAKE_CURRENT_LIST_DIR}/mainProcesses.h
+  ${CMAKE_CURRENT_LIST_DIR}/utils.h
+  ${CMAKE_CURRENT_LIST_DIR}/initData.h)
 
-target_include_directories(main_src PUBLIC ${CMAKE_CURRENT_LIST_DIR}
-  ${CMAKE_SOURCE_DIR}/src/io
-  ${CMAKE_SOURCE_DIR}/src/cuda
-  ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+target_include_directories(main_src 
+  PUBLIC 
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/dependencies/fltk
+    ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 

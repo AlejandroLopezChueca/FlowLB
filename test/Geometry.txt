@@ -1,0 +1,52 @@
+
+# If a line start with # (first character of the line), thn this line will not be read (only used for comments)
+
+##### GEOMETRIC DATA
+# The domain can be 2D or 3D
+TYPE_DOMAIN = 2D
+
+# Poinst used to create the axis of the domain, the order is x, y, z
+# The numeration of the firt element must be 1 and it has to be in ascending order with and increment of +1
+# If it is a 2D problem the coordinate z must be 0
+
+POINT(1) = (0, 0, 0)
+POINT(2) = (1, 0, 0)
+
+# Size (meters) between two consecutive points fo the mesh. The size is equal in all directions 
+SIZE = 0.05
+
+
+##### DIMENSIONS OF THE CROSS DRAINAGE WORK (CDW)
+
+# Points of geometric data that they are the initial and end points of the shapes
+INITIAL_POSITION_SHAPES = 1
+END_POSITION_SHAPES = 2
+# Shape of the CDW . It can be CIRCLE or RECTANGLE
+CDW(1).type = CIRCLE
+
+# Height and width in meters. Only used when the shape is RECTANGLE and the variable width is only used when the case is 3D
+CDW(1).height = 1
+CDW(1).width = 1 
+
+# Radius in meters.Only used when the shape is CIRCLE
+CDW(1).radius = 0.4
+
+# Separation between CDW in meters. It is the distance between consecutive centers (Only used in 3D)
+SEPARATION = 1
+
+##### OBSTACLES
+
+OBSTACLE(1).type = WALL
+OBSTACLE(1).position = (2, 0, 0) # x, y, z (meters) of geometric center
+OBSTACLE(1).height = 0.2 # in direction y
+OBSTACLE(1).xWidth = 0.2
+OBSTACLE(1).zWidth = 0.2
+
+
+
+
+
+
+
+
+

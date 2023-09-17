@@ -1,20 +1,41 @@
 # Type Analysis
-TYPE_ANALYSIS = 3D
+TYPE_ANALYSIS = 2D
 
-TIME_ANALYSIS = TRUE
-
-PLOT_GRAPHICS = TRUE
-
-# OPENGL or NONE
+# API to plot the results in real time (OPENGL or NONE). If it is NONE, there is no plot
 GRAPHICS_API = OPENGL
 
+# Type problem, It can be with only one fluid (MONOFLUID) or a free surface problem (FREE_SURFACE) with two fluids, where
+# only one fluid affects the dynamics of the problem because it is orders of magnitude heavier (heavy fluid)
+TYPE_PROBLEM = MONOFLUID
+
+# Calculate surface tension in the interface. Only used if the problem is Free Surface
+SURFACE_TENSION = FALSE
+
+# PRECISION OF THE CALCULATION. 32 bits or 64 bits
 PRECISION = 32
 
-# m3/s
+# input flow (m3/s)
 FLOW = 1
 
 KINEMATIC_VISCOSITY = 1e-5
 
+# Time of the simulation in seconds
+TIME_SIMULATION = 10000
 
-CONVERGENCE_ERROR = 0.0001
+# BOUNDARY CONDITIONS
+IN = INPUT
+UP = WALL
+BELOW = WALL
+MAIN_OUT = OUPUT
+SECUNDARY_OUT = OUTPUT
+
+# INITIAL CONDITIONS
+# Optional. This can be use to initialize internally some areas with fluid
+
+
+# SAVE OPTIONS
+# Interval to save the data in seconds
+TIME_SAVE = 1000
+
+
 
