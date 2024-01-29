@@ -1,8 +1,14 @@
 target_sources(ui
   PUBLIC  
     ${CMAKE_CURRENT_LIST_DIR}/app.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/renderLayer.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/ImGuiLayer.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/uiUtils.cpp
   PUBLIC
-    ${CMAKE_CURRENT_LIST_DIR}/app.h)
+    ${CMAKE_CURRENT_LIST_DIR}/app.h
+    ${CMAKE_CURRENT_LIST_DIR}/renderLayer.h
+    ${CMAKE_CURRENT_LIST_DIR}/ImGuiLayer.h
+    ${CMAKE_CURRENT_LIST_DIR}/uiUtils.h)
 
 target_include_directories(ui 
   PUBLIC
@@ -10,5 +16,11 @@ target_include_directories(ui
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/dependencies/fltk
     ${CMAKE_SOURCE_DIR}/dependencies/glm
+    ${CMAKE_SOURCE_DIR}/dependencies/imgui
+    ${CMAKE_SOURCE_DIR}/dependencies/imgui/backends
+    ${CMAKE_SOURCE_DIR}/dependencies/ImGuizmo
+    ${CMAKE_SOURCE_DIR}/dependencies/entt/include
     ${CMAKE_SOURCE_DIR}/dependencies/glfw_3_3_8/include
+    ${CMAKE_SOURCE_DIR}/dependencies/msdf-atlas-gen/msdfgen
+    ${CMAKE_SOURCE_DIR}/dependencies/msdf-atlas-gen/msdf-atlas-gen
     ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})

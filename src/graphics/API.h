@@ -6,4 +6,9 @@ namespace FLB
   {
     NONE = 0, OPENGL = 1
   }; 
+
+  enum class CalculationAPI
+  {
+    CUDA = 0
+  };
 }

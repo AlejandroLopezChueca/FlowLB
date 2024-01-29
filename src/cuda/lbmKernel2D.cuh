@@ -39,5 +39,5 @@ namespace FLB
     *
     */
   template<typename PRECISION, int NUMVELOCITIES>
-  __global__ void d_streamCollide2D(PRECISION* d_f, PRECISION* d_rho, PRECISION* d_ux, PRECISION* d_uy, uint8_t* d_flags, PRECISION* d_mass, const unsigned long int t);
+  __global__ void d_StreamCollide2D(PRECISION* d_f, PRECISION* d_rho, PRECISION* d_u, uint8_t* d_flags, PRECISION* d_mass, const unsigned long int t);
 }

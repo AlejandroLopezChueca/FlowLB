@@ -16,18 +16,24 @@ namespace FLB
   {
     public:
       OpenGLVertexArray();
+      ~OpenGLVertexArray();
 
       virtual void bind() const override;
       virtual void unbind() const override;
 
 
       void addVertexBuffer(VertexBuffer* const vertexBuffer) override;
-      const std::vector<VertexBuffer*>& getVertexBuffers() const override {return vertexBuffers;}; 
+      void setIndexBuffer(const FLB::IndexBuffer* indexBuffer) override;
+      const std::vector<VertexBuffer*>& getVertexBuffers() const override {return m_VertexBuffers;}; 
+    
+      void updateMemberBufferData(const uint32_t idxBuffer, const uint32_t offset, const uint32_t size, const void* data) override;
+
+      void recreate() override;
 
     private:
-      uint32_t m_rendererID;
-      uint32_t m_vertexBufferIndex = 0;
-      std::vector<VertexBuffer*> vertexBuffers;
+      uint32_t m_RendererID;
+      uint32_t m_VertexBufferIndex = 0;
+      std::vector<VertexBuffer*> m_VertexBuffers;
 
   };
 

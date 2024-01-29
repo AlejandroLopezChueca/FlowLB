@@ -1,22 +1,24 @@
 #pragma once
 
+
+#include "API.h"
+//#include "rendererAPI.h"
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <sys/stat.h>
 #include <vector>
-
+#include <string>
 #include "FL/Fl_Simple_Terminal.H"
-#include "API.h"
-//#include "rendererAPI.h"
 
 namespace FLB
 {
   enum class ShaderDataType
   {
-    None = 0, Float, Float2, Float3
+    None = 0, Float, Float2, SOAFloat2, Float3, Float4, Mat4
   };
 
-  static uint32_t ShaderDataTypeSyze(ShaderDataType type);
+  static uint32_t ShaderDataTypeSize(ShaderDataType type);
 
   struct BufferElement
   {
@@ -25,8 +27,10 @@ namespace FLB
     uint32_t size;
     uint32_t offset;
     bool normalized;
+    bool instanced;
+    size_t countStrideSOA; // used only when the vertex attributes follow a SOA scheme
 
-    BufferElement(ShaderDataType type_ ,const std::string name_, bool normalized_ = false);
+    BufferElement(ShaderDataType type_ , const std::string name_, bool instanced_ = false, size_t countStrideSOA_ = 0, bool normalized_ = false);
 
     uint32_t getComponentCount() const;
   };
@@ -38,20 +42,20 @@ namespace FLB
       BufferLayout() {}
 
       BufferLayout(const std::initializer_list<BufferElement>& elements_);
-      inline uint32_t getStride() const {return stride;}
+      inline uint32_t getStride() const {return m_Stride;}
 
-      const std::vector<BufferElement>& getElements() const {return elements;}
+      const std::vector<BufferElement>& getElements() const {return m_Elements;}
 
-      std::vector<BufferElement>::iterator begin() {return elements.begin();}
-      std::vector<BufferElement>::iterator end() {return elements.end();}
-      std::vector<BufferElement>::const_iterator begin() const {return elements.begin();}
-      std::vector<BufferElement>::const_iterator end() const {return elements.end();}
+      std::vector<BufferElement>::iterator begin() {return m_Elements.begin();}
+      std::vector<BufferElement>::iterator end() {return m_Elements.end();}
+      std::vector<BufferElement>::const_iterator begin() const {return m_Elements.begin();}
+      std::vector<BufferElement>::const_iterator end() const {return m_Elements.end();}
 
     private:
       void calculateOffsetsAndStride();
 
-      std::vector<BufferElement> elements;
-      uint32_t stride = 0;
+      std::vector<BufferElement> m_Elements;
+      uint32_t m_Stride = 0;
   };
 
   class VertexBuffer
@@ -64,8 +68,9 @@ namespace FLB
       virtual const BufferLayout& getLayout() const = 0;
       virtual void setLayout(const BufferLayout& layout) = 0;
       virtual unsigned int getVertexBufferID() const = 0;
+      virtual void resize(void* vertices, size_t size) = 0;
 
-      static std::unique_ptr<VertexBuffer> create(FLB::API api, Fl_Simple_Terminal* terminal, float* vertices, int size);
+      static std::unique_ptr<VertexBuffer> create(FLB::API api, Fl_Simple_Terminal* terminal, void* vertices, size_t size);
   };
 
   class IndexBuffer
@@ -76,6 +81,17 @@ namespace FLB
       virtual void unbind() const = 0;
 
       static std::unique_ptr<IndexBuffer> create(FLB::API api, Fl_Simple_Terminal* terminal, uint32_t* indices, uint32_t count);
+  };
+
+  class UniformBuffer
+  {
+    public:
+      virtual ~UniformBuffer() = default;
+      virtual void bind() const = 0;
+      virtual void unbind() const = 0;
+      virtual void setData(const void* data) const = 0;
+
+      static std::unique_ptr<UniformBuffer> create(FLB::API api, Fl_Simple_Terminal* terminal, size_t size, uint32_t bindingPoint);
   };
 
 }

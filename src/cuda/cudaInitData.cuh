@@ -1,10 +1,11 @@
 #pragma once
 
+#include "io/reader.h"
+#include "cudaUtils.cuh"
+
 #include <cstddef>
 #include <cstdint>
 
-
-#include "io/reader.h"
 
 namespace FLB 
 {
@@ -51,8 +52,11 @@ namespace FLB
 
   // Type of collision operator -> 0 (SRT), 1(TRT)
   extern __constant__ uint8_t d_collisionOperator;
+  
+  // Use of grvity in the simulation
+  extern __constant__ bool d_useGravity;
 
-  // Simulate surface tneion or not
+  // Simulate surface tenion or not
   extern __constant__ bool d_surfaceTension;
 
   // Force terms
@@ -72,14 +76,39 @@ namespace FLB
     */
   template<typename PRECISION>
   void h_initConstantDataCuda2D(FLB::OptionsCalculation& optionsCalc, PRECISION* h_weights, unsigned int h_Nx, unsigned int h_Ny, unsigned int h_N, uint8_t h_collisionOperator, float h_g, float h_nu);
-  
+ 
   /** Initialization of all the non constant data needed for the analysis 2D or 3D in the GPU.
      *
      */  
   template<typename PRECISION>
-  void h_initDataCuda2D(FLB::OptionsCalculation& optionsCalc, size_t numPointsMesh, unsigned int numDimensions, unsigned int numVelocities, PRECISION* d_f, PRECISION* h_f, PRECISION* d_vx, PRECISION* h_vx, PRECISION* d_vy, PRECISION* h_vy, uint8_t* d_flags, uint8_t* h_flags, PRECISION* d_mass, PRECISION* h_mass);
+  void h_initDataCuda2D(FLB::OptionsCalculation& optionsCalc, size_t numPointsMesh, unsigned int numDimensions, unsigned int numVelocities, PRECISION** d_f, PRECISION* h_f, PRECISION** d_u, PRECISION* h_u, uint8_t** d_flags, uint8_t* h_flags, PRECISION** d_mass, PRECISION* h_mass, PRECISION** d_rho, PRECISION* h_rho)
+  {
+    size_t fieldSize = numVelocities * numPointsMesh * sizeof(PRECISION);
+    checkCudaErrors(cudaMalloc((void **)d_f, fieldSize));
+    checkCudaErrors(cudaMemcpy(*d_f, h_f, fieldSize, cudaMemcpyHostToDevice));
+ 
+    fieldSize = numPointsMesh * sizeof(PRECISION);
+    checkCudaErrors(cudaMalloc((void **)d_rho, fieldSize));
+    checkCudaErrors(cudaMemcpy(*d_rho, h_rho, fieldSize, cudaMemcpyHostToDevice));
+    
+    fieldSize = numPointsMesh * sizeof(uint8_t);
+    checkCudaErrors(cudaMalloc((void **)d_flags, fieldSize));
+    checkCudaErrors(cudaMemcpy(*d_flags, h_flags, fieldSize, cudaMemcpyHostToDevice)); 
 
-
-//extern template void FLB::h_initConstantDataCuda2D<float>(FLB::OptionsCalculation& OptionsCalc, float* h_weights, unsigned int h_Nx, unsigned int h_Ny, unsigned int h_N, unsigned int h_numVelocities, uint8_t h_collisionOperator, float h_g, float h_nu);
+    // if the results are going to be renderer,  the velocity is allocated with the API used
+    if (optionsCalc.graphicsAPI == FLB::API::NONE)
+    {
+      fieldSize = numDimensions * numPointsMesh * sizeof(PRECISION);
+      checkCudaErrors(cudaMalloc((void **)d_u, fieldSize));
+      checkCudaErrors(cudaMemcpy(*d_u, h_u, fieldSize, cudaMemcpyHostToDevice));
+    }
+   
+    if (optionsCalc.typeProblem == FLB::TypeProblem::FREE_SURFACE)
+    {
+      fieldSize = numPointsMesh * sizeof(PRECISION);
+      checkCudaErrors(cudaMalloc((void **)d_mass, fieldSize));
+      checkCudaErrors(cudaMemcpy(*d_mass, h_mass, fieldSize, cudaMemcpyHostToDevice)); 
+    }
+  }
 
 }

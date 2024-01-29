@@ -7,3 +7,15 @@
 [submodule "dependencies/fltk"]
 	path = dependencies/fltk
 	url = https://github.com/fltk/fltk
+[submodule "dependencies/msdf-atlas-gen"]
+	path = dependencies/msdf-atlas-gen
+	url = https://github.com/Chlumsky/msdf-atlas-gen.git
+[submodule "dependencies/vcpkg"]
+	path = dependencies/vcpkg
+	url = https://github.com/microsoft/vcpkg.git
+[submodule "dependencies/imgui"]
+	path = dependencies/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "dependencies/assimp"]
+	path = dependencies/assimp
+	url = https://github.com/assimp/assimp.git

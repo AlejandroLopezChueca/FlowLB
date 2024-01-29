@@ -10,6 +10,7 @@ target_sources(geometry
 target_include_directories(geometry 
   PUBLIC 
     ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_SOURCE_DIR}/dependencies/glm
     ${CMAKE_SOURCE_DIR}/dependencies/fltk)
 
 

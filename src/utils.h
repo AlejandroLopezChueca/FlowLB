@@ -1,5 +1,6 @@
 #pragma once
 //#include "io/reader.h"
+#include <cstddef>
 #include <cstdint>
 
 namespace FLB 
@@ -12,16 +13,14 @@ namespace FLB
   {
     public:
       /*
-       *
-       * #include ""geometry/mesh.h"*
-       
-
-#include ""geometry/mesh.h"*  @brief Calculate the basic parametersto transform between Si units and lattice units
+       *  @brief Calculate the basic parameters used to transform between Si units and lattice units
        *
        *  @param[in]  lenght    lenght of any dimension in SI units
-       *  @param[in]  LBlenght  length of the same dimension in lattice units  
+       *  @param[in]  LBlenght  length of the same dimension in lattice units 
+       *  @param[in]  rho       kinematic viscosity in SI units
+       *  @param[in]  LBrho     kinematic viscosity in lattice units
        */
-      void setConversionParameters(float lenght, float LBlenght, float u, float LBu, float rho, float LBrho);
+      void setConversionParameters(double lenght, double LBlenght, double u, double LBu, double rho, double LBrho);
       /**
        * @brief Convert the acceleration of gravity from SI to lattice units 
        *
@@ -29,34 +28,55 @@ namespace FLB
        * @return     LBg  acceleration of gravity in lattice units
        */
       float gToLatticeUnits(float g);
+
+      /**
+       *
+       *
+       */
       float nuToLatticeUnits(float nu);
+
+      /**
+       *
+       *
+       *
+       */
       float rhoToLatticeUnits(float rho);
+
       /**
        * @brief Get the time value in SI (seconds) of a interval in the simulation
        *
        */
-      float timeToSIUnits();
+      float timeToSIUnits(size_t LBtime);
+
+      float timeToLatticeUnits(float time);
 
     private:
-      float massParameter = 1.0f; 
-      float lengthParameter = 1.0f;
-      float timeParameter = 1.0f;
+      double m_MassParameter = 1.0; 
+      double m_LengthParameter = 1.0;
+      double m_TimeParameter = 1.0;
 
   };
 
-  extern Units units;
+  //extern Units units;
 
   /**
    * @brief Types of nodes inside the domain
    */
   enum TypesNodes: uint8_t
   {
-    GAS = 0,
-    FLUID = 1,
+    // This has to be the same than graphics constants
+    FLUID = 0,
+    GAS = 1,
     INTERFACE = 2,
-    WALL = 3,
-    MOVING_WALL = 4,
-    INLET = 5,
-    OUTLET = 6
+    INTERFACE_FLUID = 3,
+    INTERFACE_GAS = 4,
+    GAS_INTERFACE = 5,
+    WALL = 6,
+    MOVING_WALL = 7,
+    INLET = 8,
+    OUTLET = 8,
+
+    NONE = 100
+
   };
 }

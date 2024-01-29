@@ -1,16 +1,19 @@
+#include "OpenGLFrameBuffer.h"
+#include "graphics/frameBuffer.h"
+
 #include <cstdint>
 #include <glad/glad.h>
 #include <stdexcept>
 #include <vector>
-
 #include "FL/fl_types.h"
-#include "OpenGLFrameBuffer.h"
-#include "graphics/frameBuffer.h"
+#include <iostream>
+
+static const uint32_t s_MaxFrameBufferSize = 8192;
 
 FLB::OpenGLFrameBuffer::OpenGLFrameBuffer(const FLB::FrameBufferSpecifications& specs)
   : m_Specifications(specs)
 {
-  resize();
+  create();
 }
 
 FLB::OpenGLFrameBuffer::~OpenGLFrameBuffer()
@@ -19,7 +22,7 @@ FLB::OpenGLFrameBuffer::~OpenGLFrameBuffer()
   glDeleteTextures(1, &m_ColorAttachment);
 }
 
-void FLB::OpenGLFrameBuffer::resize()
+void FLB::OpenGLFrameBuffer::create()
 {
   if (m_RendererID)
   {
@@ -36,8 +39,8 @@ void FLB::OpenGLFrameBuffer::resize()
   glCreateTextures(GL_TEXTURE_2D, 1, &m_ColorAttachment);
   glBindTexture(GL_TEXTURE_2D, m_ColorAttachment);
 
-  std::vector<uint8_t> da(m_Specifications.width * m_Specifications.height *4, 170);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_Specifications.width, m_Specifications.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, (void*)da.data());
+  //std::vector<uint8_t> da(m_Specifications.width * m_Specifications.height *4, 170);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_Specifications.width, m_Specifications.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
   //glTexStorage2D(GL_TEXTURE_2D, 1,GL_RGBA8, m_Specifications.width, m_Specifications.height);
   //glBindImageTexture(1, m_ColorAttachment, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
 
@@ -69,18 +72,29 @@ void FLB::OpenGLFrameBuffer::resize()
 void FLB::OpenGLFrameBuffer::bind()
 {
   glBindFramebuffer(GL_FRAMEBUFFER, m_RendererID);
-  //glViewport(0, 0, m_Specifications.width, m_Specifications.height);
+  glViewport(0, 0, m_Specifications.width, m_Specifications.height);
 }
 
-void FLB::OpenGLFrameBuffer::bindTexture()
+void FLB::OpenGLFrameBuffer::bindTexture(uint32_t binding)
 {
-  //slot 0
-  //glBindTextureUnit(1, m_ColorAttachment);
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, m_ColorAttachment);
+  glBindTextureUnit(binding, m_ColorAttachment);
+  //glActiveTexture(GL_TEXTURE0);
+  //glBindTexture(GL_TEXTURE_2D, m_ColorAttachment);
 }
 
 void FLB::OpenGLFrameBuffer::unbind()
 {
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void FLB::OpenGLFrameBuffer::resize(uint32_t width, uint32_t height)
+{
+  if (width == 0 || height == 0 || width > s_MaxFrameBufferSize || height > s_MaxFrameBufferSize)
+  {
+    std::cout << "Attemted to resize frameBuffer to " << width << " " << height <<"\n";
+    return;
+  }
+  m_Specifications.width = width;
+  m_Specifications.height = height;
+  create();
 }

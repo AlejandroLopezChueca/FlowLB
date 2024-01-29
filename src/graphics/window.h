@@ -1,11 +1,12 @@
 #pragma once
 
+#include "cameraController.h"
+
+#include "API.h"
 #include <cstdint>
 #include <memory>
-#include "FL/Fl_Simple_Terminal.H"
-
-#include "renderer.h"
-#include "cameraController.h"
+#include <string>
+#include <FL/Fl_Simple_Terminal.H>
 
 namespace FLB 
 {
@@ -23,9 +24,10 @@ namespace FLB
       uint32_t getHeight() const {return m_Height;}
 
       //virtual bool isKeyPressed(int keyCode) = 0;
+      virtual void setGizmoOperation(int* gizmoOperation) = 0;
 
       template<typename T>
-      static Window* create(FLB::API api, FLB::OrthographicCameraController* orthographicCameraController, bool is3D, Fl_Simple_Terminal* terminal);
+      static std::unique_ptr<Window> create(FLB::API api, FLB::OrthographicCameraController* orthographicCameraController, bool is3D, Fl_Simple_Terminal* terminal);
 
       //static bool render;
 

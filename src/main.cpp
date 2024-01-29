@@ -10,10 +10,8 @@
 
 int main()
 {
+  if (FLB::App::s_AppCreated) return 0;
   FLB::App app;
-  if (FLB::App::appCreated) return 0;
   app.startApp();
-  //FLB::runCalculations();
-  //FLB::Mesh mesh;
   return 0;
 }

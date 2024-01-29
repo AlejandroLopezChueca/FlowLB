@@ -25,7 +25,11 @@ namespace FLB
       void bind() const override;
       void unbind() const override;
       
-      void setInt(const std::string& name, int value) override;
+      void setInt(const std::string& name, int value) const override;
+      void setFloat(const std::string& name, const float& value) const override;
+      void setFloat2(const std::string& name, const glm::vec2& vector) const override;
+      void setFloat3(const std::string& name, const glm::vec3& vector) const override;
+      void setFloat4(const std::string& name, const glm::vec4& vector) const override;
       void setMat4(const std::string& name, const glm::mat4& matrix) const override;
 
     private:

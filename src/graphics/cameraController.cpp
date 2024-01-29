@@ -3,35 +3,29 @@
 
 #include <algorithm>
 #include <iostream>
+#include <utility>
 
 FLB::OrthographicCameraController::OrthographicCameraController(float width, float height)
-  : m_Width(width), m_Height(height), m_AspectRatio(width/height), m_Camera(-m_AspectRatio * m_ZoomLevel, m_AspectRatio * m_ZoomLevel, -m_ZoomLevel, m_ZoomLevel)
+  : m_ViewportWidth(width), m_ViewportHeight(height), m_AspectRatio(width/height), m_Camera(-m_AspectRatio * m_ZoomLevel, m_AspectRatio * m_ZoomLevel, -m_ZoomLevel, m_ZoomLevel)
 {
 }
 
 void FLB::OrthographicCameraController::GLFWUpdate(GLFWwindow* window)
 {
+  if (glfwGetKey(window, GLFW_KEY_LEFT_ALT) == GLFW_PRESS)
+  {
+    double xPos, yPos;
+    glfwGetCursorPos(window, &xPos, &yPos);
+    const glm::vec2 mouse{xPos, yPos};
+    const glm::vec2 delta = (mouse - m_InitialMousePosition) * 0.003f;
+    m_InitialMousePosition = mouse;
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS) mousePan(delta);
+    m_Camera.recalculateViewMatrix();
+  }
 
-  if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {m_CameraPosition.x -= m_CameraTranslationSpeed;} 
-  else if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {m_CameraPosition.x += m_CameraTranslationSpeed;}
-  if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {m_CameraPosition.y += m_CameraTranslationSpeed;}
-  else if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {m_CameraPosition.y -= m_CameraTranslationSpeed;}
-  if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {m_CameraRotation += m_CameraRotationSpeed;}
-  if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {m_CameraRotation -= m_CameraRotationSpeed;}
-  if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
-  {
-    double mouseX;
-    double mouseY;
-    glfwGetCursorPos(window, &mouseX, &mouseY);
-    m_CameraPosition.x = - (float)((mouseX - m_Width/2)/(m_Width/2));
-    m_CameraPosition.y = (float)((mouseY - m_Height/2)/(m_Height/2));
-    //std::cout<<m_CameraPosition.x<<" , "<<m_CameraPosition.y<<std::endl;
-  }
-  else if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_RELEASE)
-  {
-  }
-  m_Camera.setPosition(m_CameraPosition);
-  m_Camera.setRotation(m_CameraRotation);
+  else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {m_Camera.m_Rotation += m_CameraRotationSpeed; m_Camera.recalculateViewMatrix();}
+
+  else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {m_Camera.m_Rotation -= m_CameraRotationSpeed; m_Camera.recalculateViewMatrix();}
 }
 
 void FLB::OrthographicCameraController::onMouseScrolled(float xOffset, float yOffset)
@@ -40,4 +34,30 @@ void FLB::OrthographicCameraController::onMouseScrolled(float xOffset, float yOf
   m_ZoomLevel = std::max(m_ZoomLevel, 0.1f);
   m_Camera.setProjection(-m_AspectRatio * m_ZoomLevel, m_AspectRatio * m_ZoomLevel, -m_ZoomLevel, m_ZoomLevel);
   m_CameraTranslationSpeed = 0.1f * m_ZoomLevel;
+}
+
+void FLB::OrthographicCameraController::mousePan(const glm::vec2& delta)
+{
+  auto [xSpeed, ySpeed] = getPanSpeed();
+  m_Camera.m_Position += - m_Camera.getRightDirection() * xSpeed * delta.x;
+  m_Camera.m_Position += m_Camera.getUpDirection() * ySpeed * delta.y;
+}
+
+void FLB::OrthographicCameraController::setViewportSize(float width, float height)
+{
+  m_ViewportWidth = width;
+  m_ViewportHeight = height;
+  m_AspectRatio = m_ViewportWidth / m_ViewportHeight;
+  m_Camera.setProjection(-m_AspectRatio * m_ZoomLevel, m_AspectRatio * m_ZoomLevel, -m_ZoomLevel, m_ZoomLevel);
+}
+
+std::pair<float, float> FLB::OrthographicCameraController::getPanSpeed() const
+{
+  float x = std::min(m_ViewportWidth / 1000.0f, 2.4f); //  max of 2.4
+  float xFactor = 0.036f * (x * x) - 0.1778f * x + 0.32021;
+  
+  float y = std::min(m_ViewportHeight / 1000.0f, 2.4f); //  max of 2.4
+  float yFactor = 0.036f * (y * y) - 0.1778f * y + 0.32021;
+  return {xFactor, yFactor};
+
 }

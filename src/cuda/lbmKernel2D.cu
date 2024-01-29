@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 
+#include "cudaInitData.cuh"
 #include "lbmKernel2D.cuh"
 #include "cellCalculations.cuh"
 //#include "initData.cuh"
@@ -79,7 +80,7 @@ __global__ void FLB::d_FreeSurface2D_1(PRECISION* d_f, const PRECISION* d_rho, c
 
     // calculate the atmospheric equilibrium distribution function
     PRECISION d_feq[NUMVELOCITIES];
-    FLB::calculateEquilibriumDFD2Q9(1.0f - d_rhoYoungLaplace, d_uxl, d_uyl, d_feq);
+    FLB::calculateEquilibriumDDF2Q9(1.0f - d_rhoYoungLaplace, d_uxl, d_uyl, d_feq);
      
     // Load neighbors flags
     uint8_t d_neighborsFlag[NUMVELOCITIES];
@@ -157,7 +158,7 @@ __global__ void FLB::d_FreeSurface2D_3(PRECISION* d_f, PRECISION* d_rho, PRECISI
     // Correct local velocities with volume forces
     d_uxl = d_uxl + d_rhol2 * d_Fx;
     d_uyl = d_uyl + d_rhol2 * d_Fy;
-    FLB::calculateEquilibriumDFD2Q9(d_rhol, d_uxl, d_uyl, d_feq);
+    FLB::calculateEquilibriumDDF2Q9(d_rhol, d_uxl, d_uyl, d_feq);
     // Write thte equilibrium function  
     FLB::storef(idx, d_f, d_feq, neighborsIdx, t);
   }
@@ -266,13 +267,18 @@ template<typename PRECISION, int NUMVELOCITIES>
 }
 
 template<typename PRECISION, int NUMVELOCITIES>
-__global__ void FLB::d_streamCollide2D(PRECISION* d_f, PRECISION* d_rho, PRECISION* d_ux, PRECISION* d_uy, uint8_t* d_flags, PRECISION* d_mass, const unsigned long int t)
+__global__ void FLB::d_StreamCollide2D(PRECISION* d_f, PRECISION* d_rho, PRECISION* d_u, uint8_t* d_flags, PRECISION* d_mass, const unsigned long int t)
 {
   const unsigned int x = threadIdx.x + blockIdx.x * blockDim.x;
   const unsigned int y = threadIdx.y + blockIdx.y *blockDim.y;
   const unsigned int idx = x + y * d_Nx;
 
   if (x >= d_Nx || y >= d_Ny) return; // Prevent threads outside domain 
+  //printf("idx = %d x = %d, y = %d\n",idx, x, y);
+  //printf("vx = %6.4f x = %d y = %d\n", d_u[idx], x, y);
+  //printf("g = %6.4f\n", d_g);
+  //if (t == 1) printf("f = %6.4f x = %d y = %d idx = %d\n", d_f[idx], x, y, idx);
+  //printf("rho = %6.4f x = %d y = %d\n", d_rho[idx], x, y);
   
   uint8_t d_localFlag = d_flags[idx];
   if (d_localFlag == FLB::CT_GAS || d_localFlag == FLB::CT_WALL) return; // if cell is gas or static wall return
@@ -283,23 +289,26 @@ __global__ void FLB::d_streamCollide2D(PRECISION* d_f, PRECISION* d_rho, PRECISI
   PRECISION d_localf[NUMVELOCITIES]; // Local distribution function
   
   FLB::loadf<PRECISION, 9>(idx, d_f, d_localf, neighborsIdx, t); // First part of the esoteric pull. 
-
   PRECISION d_rhol, d_uxl, d_uyl; // Local density and velocities
 
   // Apply Boundary conditions in input and output 
   if (d_localFlag == FLB::CT_OPEN) 
   {
     d_rhol = d_rho[idx];
-    d_uxl = d_ux[idx];
-    d_uyl = d_uy[idx];
+    d_uxl = d_u[idx];
+    d_uyl = d_u[idx + FLB::d_N];
   } 
   else
   { //Calculate density and velocity
     FLB::calculateDensity<PRECISION, 9>(d_localf, d_rhol);
-    FLB::calculateVelocityD2Q9<PRECISION>(d_localf, d_rhol, d_uxl, d_uxl);
+    FLB::calculateVelocityD2Q9<PRECISION>(d_localf, d_rhol, d_uxl, d_uyl);
   }
+  
+  //printf("d_vx = %6.4f d_vy = %6.4f x = %d y = %d \n", d_uxl, d_uyl, x, y);
+  
+  //if (t >= 0) printf("d_rhol = %6.4f x = %d y = %d t = %lu\n", d_rhol, x, y, t);
+  //if (t >= 0) printf("d_vx = %6.4f d_vy = %6.4f x = %d y = %d t = %lu\n", d_uxl, d_uyl, x, y, t);
 
-  PRECISION d_Fi[NUMVELOCITIES]; // Forcing terms
   //PRECISION d_Fx, d_Fy; //Force terms
 
   // After collision it is neccesary to check if the interface flag needs to change
@@ -317,50 +326,73 @@ __global__ void FLB::d_streamCollide2D(PRECISION* d_f, PRECISION* d_rho, PRECISI
     if (d_massl > 1.001f * d_rhol || d_flagIF) d_flags[idx] = FLB::CT_INTERFACE_FLUID; // change flag to interface - fluid
     else if (d_massl < -0.001f || d_flagIG) d_flags[idx] = FLB::CT_INTERFACE_GAS; // change flag to interface - gas
   }
-  
+    
   // VOLUME FORCES (Guo Forcing Scheme)
-  const PRECISION d_rhol2 = 0.5f / d_rhol;
-  // Correct local velocities with volume forces
-  d_uxl = d_uxl + d_rhol2 * FLB::d_Fx;
-  d_uyl = d_uyl + d_rhol2 * FLB::d_Fy;
-  FLB::calculateForcingTerms2D<PRECISION>(d_Fi, d_Fx, d_Fy, d_uxl, d_uyl);
+  PRECISION d_Fi[NUMVELOCITIES]; // Forcing terms
+  if (FLB::d_useGravity)
+  {
+    const PRECISION d_rhol2 = 0.5f / d_rhol;
+    // Correct local velocities with volume forces
+    d_uxl = d_uxl + d_rhol2 * FLB::d_Fx; // TODO calculate terms
+    d_uyl = d_uyl + d_rhol2 * FLB::d_Fy;
+    FLB::calculateForcingTerms2D<PRECISION>(d_Fi, d_Fx, d_Fy, d_uxl, d_uyl);
+  }
 
   // Update fields except if flag is input or output (boundary)
   if (d_localFlag != FLB::CT_OPEN)
   {
     d_rho[idx] = d_rhol;
-    d_ux[idx] = d_uxl;
-    d_uy[idx] = d_uyl;
+    d_u[idx] = d_uxl;
+    d_u[idx + FLB::d_N] = d_uyl;
   }
 
   // Calculate equilibrium function
   PRECISION d_feq[NUMVELOCITIES];
-  FLB::calculateEquilibriumDFD2Q9(d_rhol, d_uxl, d_uyl, d_feq);
+  FLB::calculateEquilibriumDDF2Q9(d_rhol, d_uxl, d_uyl, d_feq);
+  //printf("LOCAL_XXXX2 = %6.4f LOCAL_XXXX = %6.4f idx = %d\n", d_localf[0], d_localf[1], idx);
 
   switch (d_collisionOperator) //Collision
   {
     case 0:// SRT
     {
 
-      PRECISION d_taul = 1 - 0.5f * d_invTau; //Relaxation of the forcing terms	
       // Perform  collision
       if (d_localFlag != FLB::CT_OPEN)
-	for (int i = 0; i < NUMVELOCITIES; i++)
+      {
+	if (FLB::d_useGravity)
 	{
-	  d_localf[i] = (1.0f - d_invTau) * d_localf[i] + d_invTau * d_feq[i] + d_taul * d_Fi[i];
+	  PRECISION d_taul = 1.0f - 0.5f * d_invTau; //Relaxation of the forcing terms	
+	  for (int i = 0; i < NUMVELOCITIES; i++) d_localf[i] = (1.0f - d_invTau) * d_localf[i] + d_invTau * d_feq[i] + d_taul * d_Fi[i];
 	}
+	else
+	{
+	  for (int i = 0; i < NUMVELOCITIES; i++)
+	  {
+	    //printf("LOCAL_PREV = %6.4f inv = %6.4f idx = %d t = %lu x = %u y = %u i = %d\n", d_localf[i],d_invTau, idx, t, x, y, i);
+	    d_localf[i] = (1.0f - d_invTau) * d_localf[i] + d_invTau * d_feq[i];
+	    //printf("LOCAL_POST = %6.4f idx = %d t = %lu x = %u y = %u i = %d\n", d_localf[i], idx, t, x, y, i);
+	    //printf("LOCAL_FEQ = %6.4f idx = %d t = %lu x = %u y = %u i = %d\n", d_feq[i], idx, t, x, y, i);
+	    //printf("Fi = %6.4f idx = %d i = %d t = %d\n", d_Fi[i], idx, i, t);
+	  }
+	}
+      }
       // Boundary condition: Local distribution function in input or output
       else
       {
-	for (int i = 0; i < NUMVELOCITIES; i++) d_localf[i] = d_feq[i];
+	for (int i = 0; i < NUMVELOCITIES; i++) 
+	{
+	  d_localf[i] = d_feq[i];
+	  //printf("LOCAL_FEQ = %6.4f idx = %d t = %lu x = %u y = %u i = %d\n", d_localf[i], idx, t, x, y, i);
+	  //printf("FEQ_LOCAL = %6.4f idx = %d i = %d t = %d\n", d_feq[i], idx, i, t);
+	}
       }
       break;
     }
 
     case 1: // TRT
-      {
-	break;
-      }
+    {
+      break;
+    }
   
   }
 
@@ -370,6 +402,6 @@ __global__ void FLB::d_streamCollide2D(PRECISION* d_f, PRECISION* d_rho, PRECISI
 
 // Explicit instantation of the functions because the templates functions are instantiated in a diferent compilation unit
 
-template __global__ void FLB::d_streamCollide2D<float, 9>(float* d_f, float* d_rho, float* d_ux, float* d_uy, uint8_t *d_flags, float* d_mass, const unsigned long t);
+template __global__ void FLB::d_StreamCollide2D<float, 9>(float* d_f, float* d_rho, float* d_u, uint8_t *d_flags, float* d_mass, const unsigned long t);
 
-template __global__ void FLB::d_streamCollide2D<double, 9>(double* d_f, double* d_rho, double* d_ux, double* d_uy, uint8_t *d_flags, double* d_mass, const unsigned long t); 
+template __global__ void FLB::d_StreamCollide2D<double, 9>(double* d_f, double* d_rho, double* d_u, uint8_t *d_flags, double* d_mass, const unsigned long t); 

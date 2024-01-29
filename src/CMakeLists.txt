@@ -1,11 +1,9 @@
 
 target_sources(main_src
   PUBLIC
-  #${CMAKE_CURRENT_LIST_DIR}/mainProcesses.cpp
   ${CMAKE_CURRENT_LIST_DIR}/utils.cpp
   ${CMAKE_CURRENT_LIST_DIR}/initData.cpp
   PUBLIC
-  #${CMAKE_CURRENT_LIST_DIR}/mainProcesses.h
   ${CMAKE_CURRENT_LIST_DIR}/utils.h
   ${CMAKE_CURRENT_LIST_DIR}/initData.h)
 

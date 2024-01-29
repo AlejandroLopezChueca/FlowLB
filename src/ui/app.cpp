@@ -12,6 +12,8 @@
 #include <string>
 #include <cuda_runtime.h>
 #include <filesystem>
+#include <vector>
+
 
 #include "app.h"
 #include "geometry/mesh.h"
@@ -23,126 +25,134 @@
 #include "graphics/rendererAPI.h"
 #include "graphics/texture.h"
 #include "graphics/frameBuffer.h"
+#include "renderLayer.h"
 #include "cuda/runCuda.cuh"
+#include "cuda/cudaUtils.cuh"
+#include "graphics/window.h"
 #include "initData.h"
+#include "io/reader.h"
 #include "io/writer.h"
+#include "renderLayer.h"
+
+
+#define BLUE fl_rgb_color(0x42, 0xA5, 0xF5)
+#define SEL_BLUE fl_rgb_color(0x21, 0x96, 0xF3)
+
+FLB::App* FLB::App::s_Instance = nullptr;
 
 FLB::App::App()
 {
-  float space = 10.0f;
-  float widthButton = (width - 4*space)/3;
-  float heightButton = 40.0f;
+  s_Instance = this;
+  const int width = 780;
+  const int height = 500;
+
+  const float space = 10.0f;
+  const float widthButton = (width - 4*space)/3;
+  const float heightButton = 40.0f;
+  const float heightDirFiles = 30.0f;
+  const float widthDirFiles = widthButton * 3 *5/6;
+  const float heightLabelLog = 40.0f;
+  
   float acumHeight = 0.0f;
-  float heightDirFiles = 30.0f;
-  float widthDirFiles = widthButton * 3 *5/6;
-  float heightLabelLog = 40.0f;
  
   //mesh = new FLB::Mesh();
-  mainWindow = new Fl_Window(width, height, "FlowLB");
-  buttonCreateDomain = new Fl_Button(space, 10, widthButton, heightButton, "Create Domain");
-  buttonRunCalculation = new Fl_Button(2*space + widthButton, 10, widthButton, heightButton, "Run");
-  buttonPostProcessing = new Fl_Button(3*space + 2*widthButton, 10, widthButton, heightButton, "PostProcessing");
+  m_MainWindow = std::make_unique<Fl_Window>(width, height, "FlowLB");
+  m_ButtonCreateDomain = std::make_unique<Fl_Button>(space, 10, widthButton, heightButton, "Create Domain");
+  m_ButtonRunCalculation = std::make_unique<Fl_Button>(2*space + widthButton, 10, widthButton, heightButton, "Run");
+  m_ButtonPostProcessing = std::make_unique<Fl_Button>(3*space + 2*widthButton, 10, widthButton, heightButton, "PostProcessing");
   acumHeight += space + heightButton + 2*space;
-  labelDir = new Fl_Box(space, acumHeight, widthButton, heightButton/2, "Directory");
+  m_LabelDir = std::make_unique<Fl_Box>(space, acumHeight, widthButton, heightButton/2, "Directory");
   acumHeight += heightButton/2;
-  dirFiles = new Fl_Output(space, acumHeight, widthDirFiles, heightDirFiles);
-  buttonDirFiles = new Fl_Button(2*space + widthDirFiles, acumHeight, 3*widthButton*1/6, heightDirFiles, "...");
+  m_DirFiles = std::make_unique<Fl_Output>(space, acumHeight, widthDirFiles, heightDirFiles);
+  m_ButtonDirFiles = std::make_unique<Fl_Button>(2*space + widthDirFiles, acumHeight, 3*widthButton*1/6, heightDirFiles, "...");
   //buttonDirFiles = new WidgetWrapper<Fl_Button>(2*space + widthDirFiles, acumHeight, 3*widthButton*1/6, heightDirFiles, "...");
   acumHeight += heightDirFiles + space;
-  labelLog = new Fl_Box(space, acumHeight, width -2*space, heightLabelLog, "LOG");
-  buttonClearTerminal = new Fl_Button(2*space + widthDirFiles, acumHeight + 0.5*(heightLabelLog - heightDirFiles), 3*widthButton*1/6, heightDirFiles, "Clear Log");
+  m_LabelLog = std::make_unique<Fl_Box>(space, acumHeight, width -2*space, heightLabelLog, "LOG");
+  m_ButtonClearTerminal = std::make_unique<Fl_Button>(2*space + widthDirFiles, acumHeight + 0.5*(heightLabelLog - heightDirFiles), 3*widthButton*1/6, heightDirFiles, "Clear Log");
+  m_ButtonPrintInfoDevice = std::make_unique<Fl_Button>(2*space + 0.5 * widthDirFiles, acumHeight + 0.5*(heightLabelLog - heightDirFiles), 3*widthButton*1/6, heightDirFiles, "Print GPU Info");
   acumHeight += heightLabelLog;
-  terminal = new Fl_Simple_Terminal(space, acumHeight, width -2*space, height - acumHeight - space); 
+  m_Terminal = std::make_unique<Fl_Simple_Terminal>(space, acumHeight, width -2 * space, height - acumHeight - space); 
 }
 
-FLB::App::~App()
-{
-  //delete mesh;
-  delete buttonCreateDomain;
-  delete buttonRunCalculation;
-  delete buttonPostProcessing;
-  delete labelDir;
-  delete dirFiles;
-  delete buttonDirFiles;
-  delete labelLog;
-  delete terminal;
-  delete mainWindow;
-}
-
-bool FLB::App::calculationEnded = true;
-bool FLB::App::domainCreationEnded = true;
-bool FLB::App::appCreated = false;
+bool FLB::App::s_CalculationEnded = true;
+bool FLB::App::s_DomainCreationEnded = true;
+bool FLB::App::s_AppCreated = false;
+bool FLB::App::s_PostProcessingEnded = false;
+bool FLB::App::s_RunningGraphics = true;
 
 void FLB::App::startApp()
 {
-  // We tell FLTK that we will not add any more widgets the the main window
-  mainWindow -> end();
+  // We tell FLTK that we will not add any more widgets than the main window
+  m_MainWindow -> end();
   // We show the window
-  mainWindow -> show();
+  m_MainWindow -> show();
 
   //Theming
   Fl::background(255, 255, 255);
   Fl::visible_focus(false);
 
-  mainWindow -> labelfont(FL_HELVETICA_BOLD);
-  buttonCreateDomain -> labelfont(FL_HELVETICA_BOLD);
-  buttonCreateDomain -> color(BLUE);
-  buttonCreateDomain -> selection_color(SEL_BLUE);
-  buttonCreateDomain -> labelcolor(FL_WHITE);
-  buttonCreateDomain -> box(FL_GTK_ROUND_UP_BOX);
+  m_MainWindow -> labelfont(FL_HELVETICA_BOLD);
+  m_ButtonCreateDomain -> labelfont(FL_HELVETICA_BOLD);
+  m_ButtonCreateDomain -> color(BLUE);
+  m_ButtonCreateDomain -> selection_color(SEL_BLUE);
+  m_ButtonCreateDomain -> labelcolor(FL_WHITE);
+  m_ButtonCreateDomain -> box(FL_GTK_ROUND_UP_BOX);
 
-  buttonRunCalculation -> labelfont(FL_HELVETICA_BOLD);
-  buttonRunCalculation -> color(BLUE);
-  buttonRunCalculation -> selection_color(SEL_BLUE);
-  buttonRunCalculation -> labelcolor(FL_WHITE);
-  buttonRunCalculation -> box(FL_GTK_ROUND_UP_BOX);
+  m_ButtonRunCalculation -> labelfont(FL_HELVETICA_BOLD);
+  m_ButtonRunCalculation -> color(BLUE);
+  m_ButtonRunCalculation -> selection_color(SEL_BLUE);
+  m_ButtonRunCalculation -> labelcolor(FL_WHITE);
+  m_ButtonRunCalculation -> box(FL_GTK_ROUND_UP_BOX);
 
-  buttonPostProcessing -> labelfont(FL_HELVETICA_BOLD);
-  buttonPostProcessing -> color(BLUE);
-  buttonPostProcessing -> selection_color(SEL_BLUE);
-  buttonPostProcessing -> labelcolor(FL_WHITE);
-  buttonPostProcessing -> box(FL_GTK_ROUND_UP_BOX);
+  m_ButtonPostProcessing -> labelfont(FL_HELVETICA_BOLD);
+  m_ButtonPostProcessing -> color(BLUE);
+  m_ButtonPostProcessing -> selection_color(SEL_BLUE);
+  m_ButtonPostProcessing -> labelcolor(FL_WHITE);
+  m_ButtonPostProcessing -> box(FL_GTK_ROUND_UP_BOX);
 
-  labelDir -> labelfont(FL_HELVETICA_BOLD);
-  labelDir -> labelsize(18);
-  labelDir -> color(FL_WHITE);
-  labelDir -> labelcolor(BLUE);
-  labelDir -> align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+  m_LabelDir -> labelfont(FL_HELVETICA_BOLD);
+  m_LabelDir -> labelsize(18);
+  m_LabelDir -> color(FL_WHITE);
+  m_LabelDir -> labelcolor(BLUE);
+  m_LabelDir -> align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 
-  dirFiles -> box(FL_DOWN_BOX);
+  m_DirFiles -> box(FL_DOWN_BOX);
 
-  buttonDirFiles -> labelfont(FL_HELVETICA_BOLD);
-  buttonDirFiles -> box(FL_GTK_UP_BOX);
+  m_ButtonDirFiles -> labelfont(FL_HELVETICA_BOLD);
+  m_ButtonDirFiles -> box(FL_GTK_UP_BOX);
 
-  buttonClearTerminal -> labelfont(FL_HELVETICA_BOLD);
-  buttonClearTerminal -> box(FL_GTK_UP_BOX);
+  m_ButtonClearTerminal -> labelfont(FL_HELVETICA_BOLD);
+  m_ButtonClearTerminal -> box(FL_GTK_UP_BOX);
+  
+  m_ButtonPrintInfoDevice -> labelfont(FL_HELVETICA_BOLD);
+  m_ButtonPrintInfoDevice -> box(FL_GTK_UP_BOX);
 
-  labelLog -> labelfont(FL_HELVETICA_BOLD);
-  labelLog -> labelsize(20);
-  labelLog -> color(BLUE);
-  labelLog -> labelcolor(FL_WHITE);
-  labelLog -> box(FL_FLAT_BOX);
-  labelLog -> align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+  m_LabelLog -> labelfont(FL_HELVETICA_BOLD);
+  m_LabelLog -> labelsize(20);
+  m_LabelLog -> color(BLUE);
+  m_LabelLog -> labelcolor(FL_WHITE);
+  m_LabelLog -> box(FL_FLAT_BOX);
+  m_LabelLog -> align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 
-  terminal -> ansi(true);
-  terminal -> append("\033[47m");
+  m_Terminal -> ansi(true);
+  m_Terminal -> append("\033[47m");
   //terminal -> printf("LOG\n\n");
   
   // Connect buttons with callbacks
-  buttonDirFiles-> callback(static_cast<Fl_Callback*>(FLB::App::getPathFiles), dirFiles);
-  buttonCreateDomain-> callback(static_cast<Fl_Callback*>(FLB::App::runCreationDomain), this);
-  buttonClearTerminal -> callback(static_cast<Fl_Callback*>(FLB::App::clearTerminal), terminal);
-  buttonRunCalculation-> callback(static_cast<Fl_Callback*>(FLB::App::runCalculation), this);
+  m_ButtonDirFiles -> callback(static_cast<Fl_Callback*>(FLB::App::getPathFiles), m_DirFiles.get());
+  m_ButtonCreateDomain -> callback(static_cast<Fl_Callback*>(FLB::App::runCreationDomain), this);
+  m_ButtonClearTerminal -> callback(static_cast<Fl_Callback*>(FLB::App::clearTerminal), m_Terminal.get());
+  m_ButtonPrintInfoDevice -> callback(static_cast<Fl_Callback*>(FLB::App::printInfoDevice), m_Terminal.get());
+  m_ButtonRunCalculation -> callback(static_cast<Fl_Callback*>(FLB::App::runCalculation), this);
 
 
   Fl::run();
 }
 
-void FLB::App::clearTerminal(Fl_Widget *widget, void *termi)
+void FLB::App::clearTerminal(Fl_Widget *widget, void *terminal)
 {
-  Fl_Simple_Terminal* thisTerminal = static_cast<Fl_Simple_Terminal*>(termi);
+  Fl_Simple_Terminal* thisTerminal = static_cast<Fl_Simple_Terminal*>(terminal);
   thisTerminal -> clear();
-
 };
 
 void FLB::App::getPathFiles(Fl_Widget* widget, void* dirFiles)
@@ -163,25 +173,25 @@ void FLB::App::getPathFiles(Fl_Widget* widget, void* dirFiles)
 
 void FLB::App::runCreationDomain(Fl_Widget* widget, void* instance)
 { 
-  if (!domainCreationEnded) return;
-  domainCreationEnded = false;
+  if (!s_DomainCreationEnded) return;
+  s_DomainCreationEnded = false;
   App* instanceApp = static_cast<App*>(instance);
   // Instantiation of the mesh here to avoid errors when the button is clicked various times when this process is  done in the Constructor
-  instanceApp -> mesh = new FLB::Mesh();
+  instanceApp -> m_Mesh = new FLB::Mesh();
   instanceApp -> createDomain();
-  domainCreationEnded = true;
-  delete instanceApp -> mesh;
+  s_DomainCreationEnded = true;
+  delete instanceApp -> m_Mesh;
 };
 
 void FLB::App::runCalculation(Fl_Widget* widget, void* instance)
 {
-  if (!calculationEnded) return;
-  calculationEnded = false;
+  if (!s_CalculationEnded) return;
+  s_CalculationEnded = false;
   App* instanceApp = static_cast<App*>(instance);
-  instanceApp -> mesh = new FLB::Mesh();
+  instanceApp -> m_Mesh = new FLB::Mesh();
   instanceApp -> calculate();
-  calculationEnded = true;
-  delete instanceApp -> mesh; 
+  s_CalculationEnded = true;
+  delete instanceApp -> m_Mesh; 
 };
 
 void FLB::App::runPostProcessing(Fl_Widget *widget, void *instance)
@@ -191,128 +201,96 @@ void FLB::App::runPostProcessing(Fl_Widget *widget, void *instance)
 
 void FLB::App::createDomain()
 {
-  std::string geometryPath = dirFiles -> value();
-  geometryPath += "/Geometry.txt";
-  if (!std::filesystem::exists(geometryPath))
-  {
-    terminal -> printf("The file Geometry.txt doesn't exist in %s\n", dirFiles -> value());
-    return;
-  }
-  FLB::GeometryReader geometryReader;
-  geometryReader.readGeometryOptions(geometryPath, mesh);
-  // get number poinst mesh in each direction
-  mesh -> getNumberPointsMesh();
-  // Reserve memory for arrays of the mesh
-  mesh -> reserveMemory();
-  //Get the coordinates of each point of the mesh in SI units 
-  mesh -> getCoordinatesPoints();
-  FLB::initData<float, FLB::voidInitVelocityAndf<float>>(9, mesh);
-  // save mesh to disk
-  FLB::VTUWriter writer;
-  std::string pathSave = dirFiles -> value();
-  pathSave += "/mesh.vtu";
-  writer.addField<uint8_t>("UInt8", "Flags", mesh -> domainFlags, mesh -> numPointsMesh, true);
-  writer.savePointData(pathSave, mesh, terminal); 
-}
-
-void FLB::App::calculate()
-{
-  std::string geometryPath = dirFiles -> value();
-  std::string optionsCalculationPath = dirFiles -> value();
+  std::string geometryPath = m_DirFiles -> value();
+  std::string optionsCalculationPath = m_DirFiles -> value();
   geometryPath += "/Geometry.txt";
   optionsCalculationPath += "/OptionsCalc.txt";
   if (!std::filesystem::exists(geometryPath))
   {
-    terminal -> printf("The file Geometry.txt doesn't exist in %s\n", dirFiles -> value());
+    m_Terminal -> printf("The file Geometry.txt doesn't exist in %s\n", m_DirFiles -> value());
     return;
   }
   if (!std::filesystem::exists(optionsCalculationPath))
   {
-    terminal -> printf("The file OptionsCalc.txt doesn't exist in %s\n", dirFiles -> value());
+    m_Terminal -> printf("[ERROR] The file OptionsCalc.txt doesn't exist in %s\n", m_DirFiles -> value());
+    return;
+  }
+
+  // Read geometry options
+  m_Mesh -> clear();
+  FLB::GeometryReader geometryReader(m_DirFiles -> value());
+  if (!geometryReader.readGeometryOptions(geometryPath, m_Mesh, m_Terminal.get())) return;
+  m_Mesh -> init();
+
+  // Read some calculation options
+  FLB::OptionsCalculation optionsCalc; 
+  FLB::CalculationReader calcReader;
+  std::vector<std::string> optionsToSearch = {"LEFT_BOUNDARY", "RIGHT_BOUNDARY", "UP_BOUNDARY", "DOWN_BOUNDARY"};
+  if (!calcReader.readSomeOptionsCalculation(optionsCalculationPath, optionsCalc, m_Terminal.get(), optionsToSearch)) return;
+ 
+  std::vector<float> voidVector; // It is not used
+  FLB::initData<float, FLB::voidInitFields<float>>(9, m_Mesh, voidVector, voidVector, voidVector, voidVector, &optionsCalc);
+  // save mesh to disk
+  std::filesystem::path directorySave = std::filesystem::path(m_DirFiles -> value());
+  FLB::VTIWriter writer{directorySave, true};
+  writer.addField<uint8_t>("UInt8", "Flags", m_Mesh -> getDomainFlags(), m_Mesh -> getNumberPointsMesh(), true);
+  writer.writeData(m_Mesh, m_Terminal.get(), true);
+}
+
+void FLB::App::calculate()
+{
+  std::string geometryPath = m_DirFiles -> value();
+  std::string optionsCalculationPath = m_DirFiles -> value();
+  geometryPath += "/Geometry.txt";
+  optionsCalculationPath += "/OptionsCalc.txt";
+  if (!std::filesystem::exists(geometryPath))
+  {
+    m_Terminal -> printf("[ERROR] The file Geometry.txt doesn't exist in %s\n", m_DirFiles -> value());
+    return;
+  }
+  if (!std::filesystem::exists(optionsCalculationPath))
+  {
+    m_Terminal -> printf("[ERROR] The file OptionsCalc.txt doesn't exist in %s\n", m_DirFiles -> value());
     return;
   }
 
   //Reading the geometry's options, but before it is neccesary to clear the data members vectors
-  mesh -> clear();
-  FLB::GeometryReader geometryReader;
-  geometryReader.readGeometryOptions(geometryPath, mesh);
-  // get number poinst mesh in each direction
-  mesh -> getNumberPointsMesh();
-  // Reserve memory for arrays of the mesh
-  mesh -> reserveMemory();
-  //Get the coordinates of each point of the mesh in SI units 
-  mesh -> getCoordinatesPoints();
-  // Indices of the mesh to create the domain of the graphics
-  mesh -> getIndicesCorners();
+  m_Mesh -> clear();
+  FLB::GeometryReader geometryReader(m_DirFiles -> value());
+  if (!geometryReader.readGeometryOptions(geometryPath, m_Mesh, m_Terminal.get())) return;
+  m_Mesh -> init();
 
   //Reading the calculation's Options
   FLB::OptionsCalculation optionsCalc; 
   FLB::CalculationReader calcReader;
-  //calcReader.readOptionsCalculation(optionsCalculationPath, optionsCalc);
-
-  // Graphics options
-  optionsCalc.graphicsAPI = FLB::API::OPENGL;
-
-  // Set the API to use for the render
-  FLB::RendererAPI::setAPI(optionsCalc.graphicsAPI);
-  // Set the renderer to call the APi
-  FLB::Renderer::setRendererAPI(mesh -> m_indicesCorners);
-  // seto options used in 2D or 3D
-  std::unique_ptr<FLB::Window> m_RenderWindow;
-  std::unique_ptr<FLB::OrthographicCameraController> m_OrthographicCameraController;
-  if (optionsCalc.typeAnalysis == 0)
-  {
-    m_OrthographicCameraController.reset(new FLB::OrthographicCameraController(1600.0f, 900.0f));
-    m_RenderWindow.reset(FLB::Window::create<FLB::OrthographicCameraController>(optionsCalc.graphicsAPI, m_OrthographicCameraController.get(), optionsCalc.typeAnalysis, terminal));
-  }
-
-  // First it is neccesary to create and bind the vertex array
-  std::unique_ptr<FLB::VertexArray> vertexArray = FLB::VertexArray::create(optionsCalc.graphicsAPI);
-  std::unique_ptr<FLB::VertexBuffer> vertexBufferCoordinates = FLB::VertexBuffer::create(optionsCalc.graphicsAPI, terminal, mesh -> coordinatesPoints.data(), 3 * mesh -> numPointsMesh * sizeof(float));
-  FLB::BufferLayout layout = {
-    {ShaderDataType::Float3, "a_PointsPosition"}
-  };
-  vertexBufferCoordinates -> setLayout(layout);
-  vertexArray -> addVertexBuffer(vertexBufferCoordinates.get());
-  FLB::Renderer::createQuad(optionsCalc.graphicsAPI, terminal);
-  vertexArray -> addVertexBuffer(FLB::Renderer::s_VertexBufferQuad.get());
-
-  std::unique_ptr<FLB::Texture1D> texture1D = FLB::Texture1D::create(optionsCalc.graphicsAPI);
-  texture1D->bind(0);
-
-  std::unique_ptr<FLB::Shader> shaderPoinstVelocity = FLB::Shader::create("assets/shaders/pointsVelocity.glsl", optionsCalc.graphicsAPI, terminal);
-  shaderPoinstVelocity -> setInt("u_ColorMap", 0);// slot 0
-  std::unique_ptr<FLB::Shader> shaderTextureVelocity2D = FLB::Shader::create("assets/shaders/textureVelocity2D.glsl", optionsCalc.graphicsAPI, terminal);
-  //shaderTextureVelocity2D -> setInt("u_ColorMap", 0);// slot 0
-  shaderTextureVelocity2D -> setInt("u_Texture", 0);// slot 0
- 
-  FLB::Renderer::s_shaderToUse = shaderPoinstVelocity.get(); //dafault
-  FLB::Renderer::s_shaderPointsVelocity = shaderPoinstVelocity.get();
-  FLB::Renderer::s_shaderTextureVelocity2D = shaderTextureVelocity2D.get();
-
-  // Textures
-  FLB::FrameBufferSpecifications specs;
-  specs.width = mesh -> Nx;
-  specs.height = mesh -> Ny;
-
-  std::unique_ptr<FLB::FrameBuffer> a = FLB::FrameBuffer::create(optionsCalc.graphicsAPI, specs);
-  FLB::Renderer::s_TextureToUse = a.get();
-  FLB::Renderer::s_TextureVelocity = a.get();
-
+  if (!calcReader.readOptionsCalculation(optionsCalculationPath, optionsCalc, m_Terminal.get())) return;
 
   unsigned int numDimensions;
   unsigned int numVelocities;
 
   size_t maxIterations = optionsCalc.timeSimulation;
+
+  // Init render layer here to prevent including entt library in cuda files (create compilation error)
+  std::unique_ptr<FLB::RenderLayer> renderLayer;
+  FLB::RenderLayer* prtRenderlayer;
+  if (optionsCalc.graphicsAPI == FLB::API::OPENGL)
+  {
+    renderLayer = std::make_unique<FLB::RenderLayer>(m_Mesh, optionsCalc, m_Terminal.get());
+    prtRenderlayer = renderLayer.get();
+  }
+  else prtRenderlayer = nullptr;
   
+  std::filesystem::path directorySave = std::filesystem::path(m_DirFiles -> value());
+
+ 
   if (optionsCalc.precision == 32)
   {
-    float h_weights[9] = {4.0f/9.0f, 1.0f/9.0f, 1.0f/9.0f, 1.0f/9.0f, 1.0f/9.0f, 1.0f/36.0f, 1.0f/36.0f, 1.0f/36.0f, 1.0f/36.0f};
+    std::vector<float> h_weights = {4.0f/9.0f, 1.0f/9.0f, 1.0f/9.0f, 1.0f/9.0f, 1.0f/9.0f, 1.0f/36.0f, 1.0f/36.0f, 1.0f/36.0f, 1.0f/36.0f};
     if (optionsCalc.typeAnalysis == 0) //2D
     {
       numDimensions = 2;
       numVelocities = 9;
-      FLB::h_runCudaCalculations2D<float>(optionsCalc, *m_RenderWindow, *vertexArray, *shaderPoinstVelocity, *m_OrthographicCameraController, h_weights, mesh, maxIterations, numDimensions, numVelocities, terminal);
+      FLB::h_launchCudaCalculations2D<float>(optionsCalc, h_weights, m_Mesh, maxIterations, numDimensions, numVelocities, m_Terminal.get(), prtRenderlayer, directorySave);
     }
     else //3D Analysis
     {
@@ -338,7 +316,17 @@ void FLB::App::calculate()
   //m_RenderWindow.reset(m_RenderWindow.get());
 }
 
+
+void FLB::App::printInfoDevice(Fl_Widget* widget, void* terminal)
+{
+  Fl_Simple_Terminal* thisTerminal = static_cast<Fl_Simple_Terminal*>(terminal);
+  FLB::CudaUtils::printInfoDevice(thisTerminal);
+}
+
 void FLB::App::postProcessing()
 {
 
 }
+
+
+

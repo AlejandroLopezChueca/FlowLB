@@ -1,3 +1,6 @@
+#include "OpenGLShader.h"
+
+
 #include "FL/Fl_Simple_Terminal.H"
 #include <filesystem>
 #include <fstream>
@@ -6,8 +9,9 @@
 #include <array>
 #include <glm/gtc/type_ptr.hpp>
 
-#include "OpenGLShader.h"
 #include "glm/fwd.hpp"
+
+#include <iostream>
 
 namespace FLB
 {
@@ -120,7 +124,7 @@ std::unordered_map<GLenum, std::string> FLB::OpenGLShader::preProcess(const std:
   {
     size_t eol = source.find_first_of("\r\n", pos);
     if (eol == std::string::npos) throw std::invalid_argument("Sintax error in shader file");
-    size_t begin = pos +typeTokenLength + 1;
+    size_t begin = pos + typeTokenLength + 1;
     std::string type = source.substr(begin, eol - begin);
     if (!FLB::shaderTypeFromString(type, terminal)) throw std::invalid_argument("Invalid shader type specified");
 
@@ -203,16 +207,40 @@ void FLB::OpenGLShader::compile(const std::unordered_map<GLenum, std::string>& s
     return;
   }
   // Always detach shaders after a successful link.
-  for (auto id : glShadersIDs) glDetachShader(program, id);
+  for (int i = 0; i < shaderSources.size(); i++) glDetachShader(program, glShadersIDs[i]);
   // set when everthing is okay
   m_RendererID = program;
 }
 
-void FLB::OpenGLShader::setInt(const std::string &name, int value)
+void FLB::OpenGLShader::setInt(const std::string &name, int value) const
+{
+  // TODO Get location only at the beginning of the render before the loop
+  GLint location = glGetUniformLocation(m_RendererID, name.c_str());
+  glUniform1i(location, value);
+}
+
+void FLB::OpenGLShader::setFloat(const std::string& name, const float& value) const
 {
   GLint location = glGetUniformLocation(m_RendererID, name.c_str());
-  // value is the slot where the texture is bound
-  glUniform1i(location, value);
+  glUniform1f(location, value);
+}
+
+void FLB::OpenGLShader::setFloat2(const std::string& name, const glm::vec2& vector) const
+{
+  GLint location = glGetUniformLocation(m_RendererID, name.c_str());
+  glUniform2f(location, vector.x, vector.y);
+}
+
+void FLB::OpenGLShader::setFloat3(const std::string& name, const glm::vec3& vector) const
+{
+  GLint location = glGetUniformLocation(m_RendererID, name.c_str());
+  glUniform3f(location, vector.x, vector.y, vector.z);
+}
+
+void FLB::OpenGLShader::setFloat4(const std::string& name, const glm::vec4& vector) const
+{
+  GLint location = glGetUniformLocation(m_RendererID, name.c_str());
+  glUniform4f(location, vector.x, vector.y, vector.z, vector.w);
 }
 
 void FLB::OpenGLShader::setMat4(const std::string& name, const glm::mat4& matrix) const

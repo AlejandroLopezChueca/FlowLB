@@ -5,20 +5,24 @@ target_sources(${PROJECT_NAME} #cuda_fluid
     ${CMAKE_CURRENT_LIST_DIR}/cudaInitData.cu
     ${CMAKE_CURRENT_LIST_DIR}/graphics.cu 
     ${CMAKE_CURRENT_LIST_DIR}/runCuda.cu
+    ${CMAKE_CURRENT_LIST_DIR}/cudaUtils.cu
   PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/lbmKernel2D.cuh
     ${CMAKE_CURRENT_LIST_DIR}/cudaInitData.cuh
     ${CMAKE_CURRENT_LIST_DIR}/graphics.cuh 
     ${CMAKE_CURRENT_LIST_DIR}/runCuda.cuh
     ${CMAKE_CURRENT_LIST_DIR}/cellCalculations.cuh
-    ${CMAKE_CURRENT_LIST_DIR}/cudaUtils.h)
+    ${CMAKE_CURRENT_LIST_DIR}/cudaUtils.cuh)
 
-include_directories(${CMAKE_SOURCE_DIR}/src)
+  #include_directories(${CMAKE_SOURCE_DIR}/src)
 target_include_directories( ${PROJECT_NAME} #cuda_fluid 
   PUBLIC 
     ${CMAKE_CURRENT_LIST_DIR}
-      ${CMAKE_SOURCE_DIR}/dependencies/glad/include
+    ${CMAKE_SOURCE_DIR}/dependencies/glad/include
     ${CMAKE_SOURCE_DIR}/dependencies/glm
+    ${CMAKE_SOURCE_DIR}/dependencies/entt/include
+    ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
+    ${CMAKE_SOURCE_DIR}/dependencies/fltk
     ${CMAKE_SOURCE_DIR}/src)
 
   #set_target_properties(cuda_fluid PROPERTIES CUDA_ARCHITECTURES native)

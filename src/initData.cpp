@@ -11,45 +11,54 @@
 
 
 
-template<typename PRECISION, FLB::initVAndf<PRECISION> initVelocityAndDistributionFuntion>
-void FLB::initData(unsigned int numVelocities, FLB::Mesh* mesh, PRECISION* h_f, PRECISION* h_ux, PRECISION* h_uy, PRECISION* h_weights, PRECISION* h_uz)
+template<typename PRECISION, FLB::initFieldsData<PRECISION> initFieldsValues>
+void FLB::initData(const unsigned int numVelocities, FLB::Mesh* mesh, std::vector<PRECISION>& h_f, std::vector<PRECISION>& h_u, const std::vector<PRECISION>& h_weights, std::vector<PRECISION>& h_rho, FLB::OptionsCalculation* optionsCalculation)
 {
-  auto& h_flags = mesh -> domainFlags;
+  std::vector<uint8_t>& h_flags = mesh -> getDomainFlags();
 
-  std::vector<FLB::Point>& points = mesh -> points; // points that define the line of the cross drainge works 
-  auto& cdws = mesh -> CDWs; //cross drainage works
-  std::vector<FLB::Shape> obstacles = mesh -> obstacles;
-			     //
-  float initPointCDWxSI = -1.0f;
-  float initPointCDWySI = -1.0f;
-  float initPointCDWzSI = -1.0f;
-  float endPointCDWxSI = -1.0f;
-  float endPointCDWySI = -1.0f;
-  float endPointCDWzSI = -1.0f;
+  std::vector<FLB::Point>& points = mesh -> getPoints(); // points that define the line of the cross drainge works 
+  const std::vector<std::unique_ptr<FLB::CDW>>& cdws = mesh -> getCDWs(); //cross drainage works
+  const std::vector<std::unique_ptr<FLB::Shape>>& obstacles = mesh -> getObstacles();
+
+  // to prevent error due to precision
+  double epsilon = 1e-12;
+			     
+  double initPointCDWxSI = -1.0;
+  double initPointCDWySI = -1.0;
+  double initPointCDWzSI = -1.0;
+  double endPointCDWxSI = -1.0;
+  double endPointCDWySI = -1.0;
+  double endPointCDWzSI = -1.0;
   // If there are points, the true values are taken
   if (points.size() > 0)
   {
-    float initPointCDWxSI = points[mesh -> initPointCDW].x;
-    float initPointCDWySI = points[mesh -> initPointCDW].y;
-    float initPointCDWzSI = points[mesh -> initPointCDW].z;
-    float endPointCDWxSI = points[mesh -> endPointCDW].x;
-    float endPointCDWySI = points[mesh -> endPointCDW].y;
-    float endPointCDWzSI = points[mesh -> endPointCDW].z;
+    initPointCDWxSI = points[mesh -> getIdxInitPointCDW()].x - epsilon;
+    initPointCDWySI = points[mesh -> getIdxInitPointCDW()].y - epsilon;
+    initPointCDWzSI = points[mesh -> getIdxInitPointCDW()].z - epsilon;
+    endPointCDWxSI = points[mesh -> getIdxEndPointCDW()].x + epsilon;
+    endPointCDWySI = points[mesh -> getIdxEndPointCDW()].y + epsilon;
+    endPointCDWzSI = points[mesh -> getIdxEndPointCDW()].z + epsilon;
   }
 
-  unsigned int h_Nx = mesh -> Nx; 
-  unsigned int h_Ny = mesh -> Ny; 
-  unsigned int h_Nz = mesh -> Nz;
-  float sizeInterval = mesh -> sizeInterval;
-  float xSI = 0.0f, ySI = 0.0f, zSI = 0.0f; //coordinates in SI units;
+  unsigned int h_Nx = mesh -> getNx(); 
+  unsigned int h_Ny = mesh -> getNy(); 
+  unsigned int h_Nz = mesh -> getNz();
+  double sizeInterval = mesh -> getSizeInterval();
+  double xSI = 0.0, ySI = 0.0, zSI = 0.0; //coordinates in SI units;
+  
+  // Reserve flags with number nodes in domain
+  unsigned int countNodes = mesh -> is3D() ? h_Nx * h_Ny * h_Nz : h_Nx * h_Ny;
+  h_flags.reserve(countNodes);
 
-  unsigned int idx;
-  unsigned int idxEndPointBase;
-  float baseCoordinateySI = 0.0f;
-  bool is3D = mesh -> is3D;
-  int defaulValueNode;
-  if (mesh -> isFreeSurface) defaulValueNode = FLB::TypesNodes::GAS;
-  else defaulValueNode = FLB::TypesNodes::FLUID;
+  double xMin = mesh -> getxMin();
+  double yMin = mesh -> getyMin();
+  double zMin = mesh -> getzMin();
+
+  uint32_t idx;
+  uint32_t idxEndPointBase;
+  double baseCoordinateySI = 0.0;
+  bool is3D = mesh -> is3D();
+  uint8_t defaulValueNode = mesh -> isFreeSurface() ? FLB::TypesNodes::GAS : FLB::TypesNodes::FLUID;
   for (unsigned int z = 0; z < h_Nz; z++)
   {
     for (unsigned int y = 0; y < h_Ny; y++)
@@ -58,61 +67,62 @@ void FLB::initData(unsigned int numVelocities, FLB::Mesh* mesh, PRECISION* h_f, 
       {
 	idx = x + (y + z * h_Ny) * h_Nx;
 	h_flags.push_back(defaulValueNode);
-	std::cout<<idx<<"\n";
-	initVelocityAndDistributionFuntion(h_f, h_ux, h_uy, h_uz, h_weights, is3D, numVelocities, idx, x, y, z, h_Nx, h_Ny);
 
-	xSI = x * sizeInterval;
-	ySI = y * sizeInterval;
-	zSI = z * sizeInterval;
-	//h_ux[idx] = 0;
-	//h_uy[idx] = 0;
-	//if (is3D) h_uz[idx] = 0;
-	//// Init distribution function as a SoA for tthe GPU, to achive coalescense read
-	//for (int i = 0; i < numVelocities; i++)
-	//{
-	//  h_f[(x + h_Nx * y + z * h_Nx * h_Ny) * numVelocities + i] = h_weights[i]; 
+	// not using the coordinates calculated of the mesh because they are type float (to load in VRAM)
+	xSI = xMin + x * sizeInterval;
+	ySI = yMin + y * sizeInterval;
+	zSI = zMin + z * sizeInterval;
 
-	//}
+	// end index of the two points beetween which the node is located
+	idxEndPointBase = getEndPointBaseCoordinate(xSI, points);
+	baseCoordinateySI = getBaseCoordinatey(xSI, idxEndPointBase, points);
 
-	// Initialization of the flags in the CDWs
 	// Check if node is inside the fluid domain of the cross drainage works
-
         // Only if the node is between the points that mark the beginning and the end of the CDW
-	if (xSI >= initPointCDWxSI  && xSI <= endPointCDWxSI && ySI >= initPointCDWySI && ySI <= endPointCDWySI && zSI >= initPointCDWzSI && zSI <= endPointCDWzSI) 
+      // TODO Correct for 3D
+	//if (xSI >= initPointCDWxSI  && xSI <= endPointCDWxSI && ySI >= initPointCDWySI && ySI <= endPointCDWySI && zSI >= initPointCDWzSI && zSI <= endPointCDWzSI) 
+	if (xSI >= initPointCDWxSI  && xSI <= endPointCDWxSI) 
 	{	
-	//for (std::unique_ptr(FLB::CDW)&  cdw : cdws) 
-	//{
-	//  if (cdw.isNodeInside(yDiff, zDiff)) h_flags[idx] = FLB::TypesNodes::GAS;
-	//}
+	  for (const std::unique_ptr<FLB::CDW>&  cdw : cdws) 
+	  {
+	    if (cdw -> isNodeInside(xSI, ySI, zSI, points, idxEndPointBase)) h_flags[idx] = defaulValueNode;
+	    else h_flags[idx] = FLB::TypesNodes::WALL;
+	  }
 	}
-	//Initialization of the flags in the domain that are not inside the CDWs, before the first point of tyhe CDW or after the end point of the CDWs
+	//Initialization of the flags in the domain that are not inside the CDWs, before the first point of the CDW or after the end point of the CDWs
+	//TODO Correct applying boundary conditions
 	else	
 	{
-	  idxEndPointBase = getEndPointBaseCoordinate(xSI, points, sizeInterval);
-	  baseCoordinateySI = getBaseCoordinatey(xSI,idxEndPointBase,points);
-	  if (ySI <= baseCoordinateySI) h_flags[idx] = FLB::TypesNodes::WALL;
+	  //if (x == 0) h_flags[idx] = optionsCalculation -> boundaryLeft;
+	  //else if (x == (h_Nx - 1)) h_flags[idx] = optionsCalculation -> boundaryRight;
+	  if (ySI <= (baseCoordinateySI + epsilon)) h_flags[idx] = optionsCalculation -> boundaryDown;
+	  else if (ySI >= (mesh ->getyMax() - epsilon)) h_flags[idx] = optionsCalculation -> boundaryUp;
 	}
+	// Coorect flgas in boundary. TODO Revise to generalice better
+	if (ySI <= (baseCoordinateySI + epsilon) && h_flags[idx] == defaulValueNode) h_flags[idx] = optionsCalculation -> boundaryDown;
+	else if (ySI >= (mesh ->getyMax() - epsilon)&& h_flags[idx] == defaulValueNode) h_flags[idx] = optionsCalculation -> boundaryUp;
+	else if (x == 0 && h_flags[idx] == defaulValueNode) h_flags[idx] = optionsCalculation -> boundaryLeft;
+	else if (x == (h_Nx - 1) && h_flags[idx] == defaulValueNode) h_flags[idx] = optionsCalculation -> boundaryRight;
 
 
-      // initialization of the nodes inside the obstacles
-	for (FLB::Shape& obstacle : obstacles)
+	// initialization of the nodes inside the obstacles
+	for (const std::unique_ptr<FLB::Shape>& obstacle : obstacles)
 	{
-
+	  if (obstacle -> isNodeInside(xSI, ySI, zSI)) h_flags[idx] = FLB::TypesNodes::WALL;
 	}
 
-	//Apply input boundary
+	// init fiedls when all the flags are indicated
+	
+	initFieldsValues(h_f, h_u, h_weights, h_flags, h_rho, is3D, numVelocities, idx, x, y, z, countNodes, optionsCalculation);
       }
     }
   }
-  // initialization of the nodes inside the obstacles
-  //for (auto obstacle : obstacles) obstacle -> initDomainShape(h_flags, FLB::TypesNodes::WALL);
 };
 
-template void FLB::initVelocityAndf<float>(float* h_f, float* h_ux, float* h_uy, float* h_uz, float* h_weights, bool is3D, unsigned int numVelocities, const unsigned int idx, unsigned int x, unsigned int y, unsigned int z, unsigned int h_Nx, unsigned int h_Ny);
+//template void FLB::initFields<float>(std::vector<float>& h_f, std::vector<float>& h_ux, std::vector<float>& h_uy, std::vector<float>& h_uz, const std::vector<float>& h_weights, std::vector<float>& h_rho, const bool is3D, const unsigned int numVelocities, const unsigned int idx, const unsigned int x, const unsigned int y, const unsigned int z, const unsigned int h_Nx, const unsigned int h_Ny, const float flow);
 
-template void FLB::initData<float, FLB::initVelocityAndf<float>>(unsigned int numVelocities, FLB::Mesh *mesh, float* h_f, float* h_ux, float* h_uy, float* h_weights, float* h_uz);
+template void FLB::initData<float, FLB::initFields<float>>(const unsigned int numVelocities, FLB::Mesh* mesh, std::vector<float>& h_f, std::vector<float>& h_u, const std::vector<float>& h_weights, std::vector<float>& h_rho, FLB::OptionsCalculation* optionsCalculation);
 
-template void FLB::initData<float, FLB::voidInitVelocityAndf<float>>(unsigned int numVelocities, FLB::Mesh *mesh, float* h_f = nullptr, float* h_ux = nullptr, float* h_uy = nullptr, float* h_weights = nullptr, float* h_uz = nullptr);
-
+template void FLB::initData<float, FLB::voidInitFields<float>>(const unsigned int numVelocities, FLB::Mesh* mesh, std::vector<float>& h_f, std::vector<float>& h_ux, const std::vector<float>& h_weights, std::vector<float>& h_rho, FLB::OptionsCalculation* optionsCalculation = nullptr);
 
 

@@ -1,25 +1,36 @@
 #include "utils.h"
 
-void FLB::Units::setConversionParameters(float length, float LBlenght, float u, float LBu, float rho, float LBrho)
-{
 
-  lengthParameter = length / LBlenght; //lenght = lengthParameter * LBlenght
-  timeParameter = lengthParameter * LBu / u; // u = LBu * lengthParameter / timeParameter; 
-  massParameter = rho / LBrho * (lengthParameter * lengthParameter * lengthParameter); // rho = LBrho * massParameter / lengthParameter^3 
+void FLB::Units::setConversionParameters(double length, double LBlenght, double u, double LBu, double rho, double LBrho)
+{
+  m_LengthParameter = length / LBlenght; //lenght = lengthParameter * LBlenght
+  m_TimeParameter = m_LengthParameter * LBu / u; // u = LBu * lengthParameter / timeParameter; 
+  m_MassParameter = rho / LBrho * (m_LengthParameter * m_LengthParameter * m_LengthParameter); // rho = LBrho * massParameter / lengthParameter^3 
 }
 
 float FLB::Units::gToLatticeUnits(float g)
 {
-  return g * timeParameter * timeParameter / lengthParameter;
+  return g * m_TimeParameter * m_TimeParameter / m_LengthParameter;
 }
 
 float FLB::Units::nuToLatticeUnits(float nu)
 {
-  return nu * timeParameter / (lengthParameter * lengthParameter); 
+  return nu * m_TimeParameter / (m_LengthParameter * m_LengthParameter); 
 }
 
 float FLB::Units::rhoToLatticeUnits(float rho)
 {
-  return rho * lengthParameter * lengthParameter * lengthParameter / massParameter;
+  return rho * m_LengthParameter * m_LengthParameter * m_LengthParameter / m_MassParameter;
 }
-FLB::Units units;
+
+float FLB::Units::timeToSIUnits(size_t LBtime)
+{
+  // the lattice time is 1
+  return LBtime * m_TimeParameter;
+}
+
+float FLB::Units::timeToLatticeUnits(float time)
+{
+  return time/m_TimeParameter;
+}
+

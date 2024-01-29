@@ -2,12 +2,14 @@
 
 #include "rendererAPI.h"
 #include "OpenGL/OpenGLRendererAPI.h"
+#include <array>
 #include <cstdint>
 
 // default API
 FLB::API FLB::RendererAPI::s_API = FLB::API::NONE;
 
-std::unique_ptr<FLB::RendererAPI> FLB::RendererAPI::create(uint32_t indices[4])
+std::unique_ptr<FLB::RendererAPI> FLB::RendererAPI::create(const std::array<uint32_t,4> indices)
+
 {
   switch (s_API) 
   {

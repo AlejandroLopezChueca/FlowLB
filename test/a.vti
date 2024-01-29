@@ -1,0 +1,37 @@
+<VTKFile type="ImageData" version="1.0" byte_order="LittleEndian" header_type="UInt64">
+  <ImageData WholeExtent="0 4 0 4 0 0" Origin="1.0000000148779886e-7 1.0000000148779886e-7 0" Spacing="0.04999995074505731 0.04999995074505731 0" Direction="1 0 0 0 1 0 0 0 1">
+  <Piece Extent="0 4 0 4 0 0">
+    <PointData>
+      <DataArray type="UInt8" Name="Flags" format="ascii">
+ 6
+6
+6
+6
+6
+8
+0
+0
+0
+8
+8
+0
+0
+0
+8
+8
+0
+0
+0
+8
+6
+6
+6
+6
+6
+      </DataArray>
+    </PointData>
+    <CellData>
+    </CellData>
+  </Piece>
+  </ImageData>
+</VTKFile>

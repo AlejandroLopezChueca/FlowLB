@@ -6,9 +6,22 @@
 #include <glm/glm.hpp>
 #include <sys/types.h>
 #include <vector>
+#include <filesystem>
 
 namespace FLB
 {
+  enum class ImageFormat
+  {
+    //None = 0,
+    R8 = 0,
+    RGB8,
+    RGBA8,
+    R32F,
+    RG32F,
+    RGB32F,
+    RGBA32F
+  };
+
   class Texture
   {
     public:
@@ -19,19 +32,23 @@ namespace FLB
       virtual uint32_t getID() const = 0;
 
       virtual void bind(uint32_t slot) const = 0;
+
+      virtual void setData(void* data, uint32_t size) = 0;
   };
 
   class Texture1D: public Texture
   {
     public:
+      virtual ~Texture1D() = default;
       virtual void setColors(const std::vector<glm::vec3>& colors) = 0;
-      static std::unique_ptr<Texture1D> create(FLB::API api); 
+      static std::unique_ptr<Texture1D> create(FLB::API api, const std::vector<glm::vec3>& colors); 
   };
 
   class Texture2D: public Texture
   {
     public:
-      static std::unique_ptr<Texture2D> create(FLB::API api, uint32_t width, uint32_t height); 
+      static std::unique_ptr<Texture2D> create(FLB::API api, uint32_t width, uint32_t height, ImageFormat format);
+      static std::unique_ptr<Texture2D> create(FLB::API api, const std::filesystem::path& path);
   };
 
 }
