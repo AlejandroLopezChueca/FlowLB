@@ -9,7 +9,8 @@
 static uint32_t FLB::ShaderDataTypeSize(ShaderDataType type)
   {
     switch (type) 
-    { 
+    {
+      case ShaderDataType::Uint8:     return 1;
       case ShaderDataType::Float:     return 4;
       case ShaderDataType::Float2:    return 4 * 2;
       case ShaderDataType::SOAFloat2: return 4;
@@ -30,6 +31,7 @@ uint32_t FLB::BufferElement::getComponentCount() const
 {
   switch (type)
   {
+    case ShaderDataType::Uint8:      return 1;
     case ShaderDataType::Float:      return 1;
     case ShaderDataType::Float2:     return 2;
     case ShaderDataType::SOAFloat2:  return 2;

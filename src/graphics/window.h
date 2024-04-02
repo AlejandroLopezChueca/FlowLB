@@ -3,6 +3,7 @@
 #include "cameraController.h"
 
 #include "API.h"
+#include "glm/fwd.hpp"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -22,9 +23,13 @@ namespace FLB
       virtual void* getWindow() const = 0;
       uint32_t getWidth() const {return m_Width;}
       uint32_t getHeight() const {return m_Height;}
+      virtual bool getMousePos(glm::dvec2& mousePos) const = 0;
+      virtual bool isLeftButtonMouseClicked() const = 0;
 
       //virtual bool isKeyPressed(int keyCode) = 0;
       virtual void setGizmoOperation(int* gizmoOperation) = 0;
+
+      virtual bool isInitialized() const = 0;
 
       template<typename T>
       static std::unique_ptr<Window> create(FLB::API api, FLB::OrthographicCameraController* orthographicCameraController, bool is3D, Fl_Simple_Terminal* terminal);

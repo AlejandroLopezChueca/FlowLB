@@ -44,7 +44,7 @@ namespace FLB
   class ScalarFieldData: public FieldData
   {
     public:
-      ScalarFieldData(std::string name, std::string typeData, size_t numberPoints, const std::vector<T>& data);
+      ScalarFieldData(std::string name, std::string typeData, size_t numberPoints, const std::vector<T>& data, const double constantToSI);
       void writeData(std::ofstream& ofs) override;
 
     private:
@@ -52,13 +52,14 @@ namespace FLB
       std::string m_NameField;
       std::string m_DataType;
       size_t m_NumPoints;
+      const double m_ConstantToSI;
   };
 
   template<typename T>
   class VectorFieldData: public FieldData
   {
     public:
-      VectorFieldData(std::string name, std::string typeData, size_t numberPoints, const std::vector<T>& data, uint32_t numberComponents);
+      VectorFieldData(std::string name, std::string typeData, size_t numberPoints, const std::vector<T>& data, uint32_t numberComponents, const double constantToSI, const bool changeSignYComponent);
       void writeData(std::ofstream& ofs) override;
 
     private:
@@ -67,6 +68,8 @@ namespace FLB
       std::string m_DataType;
       size_t m_NumPoints;
       uint32_t m_NumberComponents;
+      const double m_ConstantToSI;
+      const bool m_ChangeSignYComponent;
   };
 
   /*
@@ -79,7 +82,7 @@ namespace FLB
       Writer(const std::filesystem::path directoryPath);
       
       template<typename T>
-      void addField(std::string typeData, std::string nameField, const std::vector<T>& data, size_t numberPoints, bool isScalar, uint32_t numberComponents = 2);
+      void addField(std::string typeData, std::string nameField, const std::vector<T>& data, size_t numberPoints, bool isScalar, double constantToSI = 1.0, uint32_t numberComponents = 2, bool changeSignYComponent = false);
       
     protected:
       std::string getFormat(FLB::FileFormat fileformat);

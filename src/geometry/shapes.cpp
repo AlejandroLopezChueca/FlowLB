@@ -100,7 +100,7 @@ bool FLB::RectangleShape::initShape(const std::filesystem::path& directoryPath, 
       m_xCoordinates.insert(m_xCoordinates.end(), {yMin, yMin, yMax, yMax});
     }
   }
-  // Epsilon to prevent decimal erros in checking bounding box if point is in edge
+  // Epsilon to prevent decimal errors in checking bounding box if point is in edge
   m_xMax = xMax + m_Epsilon;
   m_xMin = xMin - m_Epsilon;
   m_yMax = yMax + m_Epsilon;

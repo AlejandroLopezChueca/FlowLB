@@ -1,8 +1,10 @@
 #pragma once
 
+#include "graphics/texture.h"
 #include "graphics/vertexArray.h"
 #include "graphics/buffer.h"
 #include "graphics/API.h"
+#include <array>
 #include <geometry/mesh.h>
 
 #include <cstdint>
@@ -90,6 +92,32 @@ namespace FLB
 
       uint32_t m_NumberPointsX = 2;
       uint32_t m_NumberPointsY = 2;
+  };
+  
+  enum TypeIsosurface
+  {
+    Phi = 0, Velocity // phi only for free surface
+  };
+
+  class IsoSurfaceMesh
+  {
+    public:
+      IsoSurfaceMesh(FLB::API api, Fl_Simple_Terminal* terminal, const FLB::Mesh* mesh, uint32_t width, uint32_t height, std::array<float, 8>& vertices);
+      
+      FLB::VertexArray* getVertexArray() const {return m_VertexArray.get();}
+      FLB::Texture2D* getTexture() const {return m_Texture.get();}
+      TypeIsosurface& getTypeIsosurface()  {return m_TypeIsosurface;}
+      void resize(const unsigned int width, const unsigned int height);
+
+    private:
+      void init(FLB::API api, Fl_Simple_Terminal* terminal, const FLB::Mesh* mesh, uint32_t width, uint32_t height, std::array<float, 8>& vertices);
+
+      std::unique_ptr<FLB::VertexArray> m_VertexArray;
+      std::unique_ptr<FLB::Texture2D> m_Texture;
+      std::unique_ptr<FLB::VertexBuffer> m_VertexBufferVertices;
+      std::unique_ptr<FLB::VertexBuffer> m_VertexBufferTexture;
+
+      TypeIsosurface m_TypeIsosurface;
   };
 
 }

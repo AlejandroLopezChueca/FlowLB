@@ -128,15 +128,18 @@ std::string FLB::Reader::extractString(std::string option, char initDelimiter, c
 
 ////////////////////////////////////// CalculationReader //////////////////////////////////////
 
+FLB::CalculationReader::CalculationReader(std::filesystem::path directoryPath)
+  : m_DirectoryPath(directoryPath) {}
+
 bool FLB::CalculationReader::checkOptionsCalculation(FLB::OptionsCalculation& optionsCalc, Fl_Simple_Terminal* terminal, bool checkAllOptions)
 { 
-  if (checkAllOptions && optionsCalc.flow > 1e-15 && optionsCalc.velocity > 1e-15)
+  if (checkAllOptions && optionsCalc.flow > 1e-15 && (optionsCalc.SIVelocity.x + optionsCalc.SIVelocity.y + optionsCalc.SIVelocity.z) > 1e-15)
   {
     terminal -> printf("[CALCULATION OPTIONS ERROR] Only one of the two arguments, flow and velocity, must be idicated, not both\n");
      return false;
   }
   
-  if (checkAllOptions && optionsCalc.flow < 1e-15 && optionsCalc.velocity < 1e-15)
+  if (checkAllOptions && optionsCalc.flow < 1e-15 && (optionsCalc.SIVelocity.x + optionsCalc.SIVelocity.y + optionsCalc.SIVelocity.z) < 1e-15)
   {
     terminal -> printf("[CALCULATION OPTIONS ERROR] One of the two arguments, flow or velocity, must be idicated\n");
      return false;
@@ -234,6 +237,12 @@ bool FLB::CalculationReader::checkOptionsCalculation(FLB::OptionsCalculation& op
     }
   }
 
+  // Options only used in free surface
+  if (optionsCalc.typeProblem == FLB::TypeProblem::FREE_SURFACE)
+  {
+
+  }
+
   return true;
 }
 
@@ -273,15 +282,29 @@ bool FLB::CalculationReader::getOptionCalculation(std::string& option, std::stri
 
   else if (option == "TYPE_PROBLEM")
   {
-    if (value == "MONOFLUID") {optionsCalc.typeProblem = TypeProblem::MONOFLUID;} 
-    else if (value == "FREE_SURFACE") {optionsCalc.typeProblem = TypeProblem::FREE_SURFACE;}
+    if (value == "MONOFLUID") {optionsCalc.typeProblem = FLB::TypeProblem::MONOFLUID;} 
+    else if (value == "FREE_SURFACE") {optionsCalc.typeProblem = FLB::TypeProblem::FREE_SURFACE;}
     else {errorOption = true;}
   }
-  
+ 
   else if (option == "GRAVITY")
   {
     if (value == "FALSE") {optionsCalc.useGravity = false;} 
     else if (value == "TRUE") {optionsCalc.useGravity = true;}
+    else {errorOption = true;}
+  }
+  
+  else if (option == "COLLISION_OPERATOR") 
+  {
+    if (value == "SRT") {optionsCalc.collisionOperator = 0;} 
+    else if (value == "TRT") {optionsCalc.collisionOperator = 1;}
+    else {errorOption = true;} 
+  }
+  
+  else if (option == "SUBGRID_TURBULENCE_MODEL")
+  {
+    if (value == "FALSE") {optionsCalc.useSubgridModel = false;} 
+    else if (value == "TRUE") {optionsCalc.useSubgridModel = true;}
     else {errorOption = true;}
   }
 
@@ -298,6 +321,27 @@ bool FLB::CalculationReader::getOptionCalculation(std::string& option, std::stri
     else if (value == "32") {optionsCalc.precision = 32;}
     else if (value == "64") {optionsCalc.precision = 64;}
     else {errorOption = true;} 
+  }
+
+  else if (option == "REFERENCE_VELOCITY")
+  {
+    try
+    {
+      optionsCalc.LBVelocity.x = std::stod(value);
+      optionsCalc.LBVelocity.y = std::stod(value);
+      optionsCalc.LBVelocity.z = std::stod(value);
+    }
+    catch(...)
+    {
+      terminal -> printf("[CALCULATION OPTIONS ERROR] The value of the reference velocity in the calculation's file in the line %d is invalid\n", posLine);
+      return false;
+    }
+    if (optionsCalc.flow < 0)
+    {
+      terminal -> printf("[CALCULATION OPTIONS ERROR] The value of the reference velocity in the calculation's file in the line %d cannot be negative\n", posLine);
+      return false;
+    }
+
   }
 
   else if (option == "FLOW") 
@@ -322,14 +366,18 @@ bool FLB::CalculationReader::getOptionCalculation(std::string& option, std::stri
   {
     try
     {
-      optionsCalc.velocity = std::stod(value);
+      std::regex r("\\s+"); // Delete whitespaces
+      value = std::regex_replace(value, r, "");
+      optionsCalc.SIVelocity.x = std::stod(extractString(value, '(', ',', posLine));
+      optionsCalc.SIVelocity.y = std::stod(extractString(value, ',', ',', 1, 2, posLine));
+      optionsCalc.SIVelocity.z = std::stod(extractString(value, ',', ')', 2, 1, posLine));
     }
     catch(...)
     {
       terminal -> printf("[CALCULATION OPTIONS ERROR] The value of the velocity in the calculation's file in the line %d is invalid\n", posLine);
       return false;
     }
-    if (optionsCalc.flow < 0)
+    if (optionsCalc.SIVelocity.x < 0 || optionsCalc.SIVelocity.y < 0 || optionsCalc.SIVelocity.z < 0)
     {
       terminal -> printf("[CALCULATION OPTIONS ERROR] The value of the velocity in the calculation's file in the line %d cannot be negative\n", posLine);
       return false;
@@ -391,7 +439,7 @@ bool FLB::CalculationReader::getOptionCalculation(std::string& option, std::stri
   {
     getTypeNode(optionsCalc.boundaryDown, value);
   }
-  
+ 
   else if (option == "TIME_SIMULATION") 
   {
     try
@@ -428,7 +476,8 @@ bool FLB::CalculationReader::getOptionCalculation(std::string& option, std::stri
     }
   }
   
-  else 
+  // the initial conditions are extracted in other function
+  else if (option.substr(0,7) != "INITIAL") 
   {
     terminal -> printf("[CALCULATION OPTIONS ERROR] The option in the calculation's file in the line %d doesn't exist\n", posLine);
     return false;
@@ -442,6 +491,149 @@ bool FLB::CalculationReader::getOptionCalculation(std::string& option, std::stri
   return true;
 }
 
+bool FLB::CalculationReader::getInitialConditions(const std::string& option, const std::string& value, const unsigned int posLine, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal)
+{
+  std::string description = extractString(option, '(', posLine);
+  
+  // only continue when initial condition
+  if (description == "INITIAL_CONDITION_FLAG")
+  {
+    // get number of the element
+    int elementNumber = std::stoi(FLB::GeometryReader::extractString(option, '(', ')', posLine));
+    int countConditions = mesh -> getInitialConditionShapes().size();
+    bool existCondition = elementNumber <= countConditions;
+    std::string attribute = FLB::GeometryReader::extractString(option, ')', posLine, true);
+    if (attribute == "type")
+    {
+      if (existCondition)
+      {
+	terminal -> printf("[CALCULATION OPTIONS ERROR] The initial condition in the line %d already exist\n", posLine);
+	return false;
+      }
+
+      if (value == "CUBE")
+      {
+	std::unique_ptr<FLB::Shape> rectangleShape = std::make_unique<FLB::RectangleShape>();
+	rectangleShape -> typeShape = FLB::TypeShape::Rectangle;
+	mesh -> getInitialConditionShapes().push_back(std::move(rectangleShape));
+      }
+      else if (value == "CSV_2D")
+      {
+	std::unique_ptr<FLB::Shape> importedShape = std::make_unique<FLB::Imported2DShape>();
+	importedShape -> typeShape = FLB::TypeShape::Imported2DShape;
+	mesh -> getInitialConditionShapes().push_back(std::move(importedShape));
+      }
+    }
+
+    else if (attribute == "name")
+    {
+      if (!existCondition)
+      {
+	terminal -> printf("[CALCULATION OPTIONS ERROR] Error in the line %d. It is neccesary to specify the type of initial condition first\n", posLine);
+	return false;
+      }
+
+      if (mesh -> getInitialConditionShapes()[elementNumber - 1] -> typeShape == FLB::TypeShape::Imported2DShape)
+      {
+	std::string filename = value + ".csv";
+	mesh -> getInitialConditionShapes()[elementNumber -1] -> setFilename(filename);
+      }
+    }
+
+    else if (attribute == "position")
+    {
+      if (!existCondition)
+      {
+	terminal -> printf("[CALCULATION OPTIONS ERROR] Error in the line %d. It is neccesary to specify the type of initial condition first\n", posLine);
+	return false;
+      }
+      // get the coordinates of the center
+      double x, y, z;
+      x = std::stod(extractString(value, '(', ',', posLine));
+      y = std::stod(extractString(value, ',', ',', 1, 2, posLine));
+      z = std::stod(extractString(value, ',', ')', 2, 1, posLine));
+      
+      FLB::TypeShape type = mesh -> getInitialConditionShapes()[elementNumber - 1] -> typeShape; 
+      if (type == FLB::TypeShape::Rectangle || type == FLB::TypeShape::Imported2DShape)
+      {
+	mesh -> getInitialConditionShapes()[elementNumber -1] -> setValue(x, FLB::TypeValue::x0);
+	mesh -> getInitialConditionShapes()[elementNumber -1] -> setValue(y, FLB::TypeValue::y0);
+	mesh -> getInitialConditionShapes()[elementNumber -1] -> setValue(z, FLB::TypeValue::z0);
+      }
+    }
+    
+    else if (attribute == "height")
+    {
+      if (!existCondition)
+      {
+	terminal -> printf("[CALCULATION OPTIONS ERROR] Error in the line %d. It is neccesary to specify the type of initial condition first\n", posLine);
+	return false;
+      }
+      if (mesh -> getInitialConditionShapes()[elementNumber - 1] -> typeShape == FLB::TypeShape::Rectangle) mesh -> getInitialConditionShapes()[elementNumber - 1] -> setValue(std::stod(value), FLB::TypeValue::Height);
+    }
+
+    else if (attribute == "xWidth")
+    {
+      if (!existCondition)
+      {
+	terminal -> printf("[CALCULATION OPTIONS ERROR] Error in the line %d. It is neccesary to specify the type of initial condition first\n", posLine);
+	return false;
+      }
+      if (mesh -> getInitialConditionShapes()[elementNumber - 1] -> typeShape == FLB::TypeShape::Rectangle) mesh -> getInitialConditionShapes()[elementNumber - 1] -> setValue(std::stod(value), FLB::TypeValue::xWidth);
+    }
+    
+    else if (attribute == "zWidth")
+    {
+      if (!existCondition)
+      {
+	terminal -> printf("[CALCULATION OPTIONS ERROR] Error in the line %d. It is neccesary to specify the type of initial condition first\n", posLine);
+	return false;
+      }
+      if (mesh -> getInitialConditionShapes()[elementNumber - 1] -> typeShape == FLB::TypeShape::Rectangle) mesh -> getInitialConditionShapes()[elementNumber - 1] -> setValue(std::stod(value), FLB::TypeValue::zWidth);
+    }
+  }
+
+  return true;
+}
+
+bool FLB::CalculationReader::modifyCalculationData(FLB::Mesh* mesh, Fl_Simple_Terminal* terminal, FLB::OptionsCalculation& optionsCalc)
+{
+  // For all the imported shapes and with all the information they needed already read, its initialization is now posible
+  std::vector<std::unique_ptr<FLB::Shape>>& initialConditions = mesh -> getInitialConditionShapes();
+ 
+  for (std::unique_ptr<FLB::Shape>& initialCondition : initialConditions)
+  {
+    // set if the domain is 3D in the obstacles
+    initialCondition -> setIs3D(mesh -> is3D());
+    FLB::TypeShape type = initialCondition -> typeShape;
+    if (type == FLB::TypeShape::Imported2DShape || type == FLB::TypeShape::Rectangle) 
+    {
+      // return if some error is produced
+      if (!initialCondition -> initShape(m_DirectoryPath, terminal)) return false;
+    }
+  }
+  // correct lattice velocities to normalize the values with 0.1 for the max vlaue of the three
+  if (optionsCalc.SIVelocity.x > optionsCalc.SIVelocity.y && optionsCalc.SIVelocity.x > optionsCalc.SIVelocity.z) // the x value is the reference value
+  {
+    optionsCalc.LBVelocity.y *= optionsCalc.SIVelocity.y / optionsCalc.SIVelocity.x; 
+    optionsCalc.LBVelocity.z *= optionsCalc.SIVelocity.z / optionsCalc.SIVelocity.x; 
+  }
+
+  else if (optionsCalc.SIVelocity.y > optionsCalc.SIVelocity.x && optionsCalc.SIVelocity.x > optionsCalc.SIVelocity.z) // the y value is the reference value
+  {
+    optionsCalc.LBVelocity.x *= optionsCalc.SIVelocity.x / optionsCalc.SIVelocity.y; 
+    optionsCalc.LBVelocity.z *= optionsCalc.SIVelocity.z / optionsCalc.SIVelocity.y; 
+  }
+  
+  else
+  {
+    optionsCalc.LBVelocity.x *= optionsCalc.SIVelocity.x / optionsCalc.SIVelocity.z; 
+    optionsCalc.LBVelocity.y *= optionsCalc.SIVelocity.y / optionsCalc.SIVelocity.z; 
+  }
+
+  return true;
+}
+
 void FLB::CalculationReader::getTypeNode(FLB::TypesNodes& typeNode, std::string& value)
 {
   if (value == "INPUT") typeNode = FLB::TypesNodes::INLET;
@@ -449,7 +641,7 @@ void FLB::CalculationReader::getTypeNode(FLB::TypesNodes& typeNode, std::string&
   if (value == "WALL") typeNode = FLB::TypesNodes::WALL;
 }
 
-bool FLB::CalculationReader::readOptionsCalculation(std::string& filePath, FLB::OptionsCalculation& optionsCalc, Fl_Simple_Terminal* terminal)
+bool FLB::CalculationReader::readOptionsCalculation(std::string& filePath, FLB::OptionsCalculation& optionsCalc, Fl_Simple_Terminal* terminal, FLB::Mesh* mesh)
 {
   unsigned int posLine = 0;
   std::string textFile;
@@ -467,15 +659,17 @@ bool FLB::CalculationReader::readOptionsCalculation(std::string& filePath, FLB::
       std::string optionCalc[2];
       if(!splitString(optionCalc, textFile, '=', posLine, terminal, 1)) {fileIn.close(); return false;}
       if (!getOptionCalculation(optionCalc[0], optionCalc[1], optionsCalc, posLine, terminal)) {fileIn.close(); return false;}
+      if (!getInitialConditions(optionCalc[0], optionCalc[1], posLine, mesh, terminal)) {fileIn.close(); return false;}
     }
 
+    if (!modifyCalculationData(mesh, terminal, optionsCalc)) {fileIn.close(); return false;}; 
     if (!checkOptionsCalculation(optionsCalc, terminal)) {fileIn.close(); return false;}
   }
   fileIn.close();
   return true;
 }
 
-bool FLB::CalculationReader::readSomeOptionsCalculation(std::string &filePath, FLB::OptionsCalculation &optionsCalc, Fl_Simple_Terminal *terminal, std::vector<std::string>& optionsToSearch)
+bool FLB::CalculationReader::readSomeOptionsCalculation(std::string &filePath, FLB::OptionsCalculation &optionsCalc, Fl_Simple_Terminal *terminal, FLB::Mesh* mesh, std::vector<std::string>& optionsToSearch)
 {
   unsigned int posLine = 0;
   std::string textFile;
@@ -491,12 +685,13 @@ bool FLB::CalculationReader::readSomeOptionsCalculation(std::string &filePath, F
       
       std::string optionCalc[2];
       if(!splitString(optionCalc, textFile, '=', posLine, terminal, 1)) {fileIn.close(); return false;}
+      if (!getInitialConditions(optionCalc[0], optionCalc[1], posLine, mesh, terminal)) {fileIn.close(); return false;}
 
-      // continue onlye if the value is in the options to search
+      // continue only if the value is in the options to search
       if (std::find(optionsToSearch.begin(), optionsToSearch.end(), optionCalc[0]) == optionsToSearch.end()) continue;
       if (!getOptionCalculation(optionCalc[0], optionCalc[1], optionsCalc, posLine, terminal)) {fileIn.close(); return false;}
     }
-    
+    if (!modifyCalculationData(mesh, terminal, optionsCalc)) {fileIn.close(); return false;}; 
     if (!checkOptionsCalculation(optionsCalc, terminal, false)) {fileIn.close(); return false;}
   }
   fileIn.close();
@@ -567,10 +762,8 @@ bool FLB::GeometryReader::getMeshElements(std::string& element, std::string& coo
   return true;
 }
 
-bool FLB::GeometryReader::getCDWData(const std::string& option, const std::string& value, unsigned int posLine, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal)
+bool FLB::GeometryReader::getCDWData(const std::string& option, const std::string& value, const unsigned int posLine, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal)
 {
-  bool errorOption = false;
-
   std::string description = extractString(option, '(', posLine);
   if (description == "INITIAL_POSITION_SHAPES")
   {
@@ -686,6 +879,7 @@ bool FLB::GeometryReader::getCDWData(const std::string& option, const std::strin
     }
   }
 
+  // TODO
   else if (description == "SEPARATION")
   {
 
@@ -695,7 +889,7 @@ bool FLB::GeometryReader::getCDWData(const std::string& option, const std::strin
 
 }
 
-bool FLB::GeometryReader::getObstaclesData(const std::string& option, const std::string& value, unsigned int posLine, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal)
+bool FLB::GeometryReader::getObstaclesData(const std::string& option, const std::string& value, const unsigned int posLine, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal)
 {
   bool errorOption = false;
   std::string description = extractString(option, '(', posLine);
@@ -714,19 +908,21 @@ bool FLB::GeometryReader::getObstaclesData(const std::string& option, const std:
 	terminal -> printf("[GEOMETRY OPTIONS ERROR] The numeration of the CDW in the line %d already exist\n", posLine);
 	return false;
       }
+
       if (value == "WALL")
       {
 	std::unique_ptr<FLB::Shape> rectangleShape = std::make_unique<FLB::RectangleShape>();
 	rectangleShape -> typeShape = FLB::TypeShape::Rectangle;
 	mesh -> getObstacles().push_back(std::move(rectangleShape));
       }
-      if  (value == "CIRCLE")
+
+      else if  (value == "CIRCLE")
       {
 	std::unique_ptr<FLB::Shape> circleShape = std::make_unique<FLB::CircleShape>();
 	circleShape -> typeShape = FLB::TypeShape::Circle;
 	mesh -> getObstacles().push_back(std::move(circleShape));
       }
-      if (value == "CSV_2D")
+      else if (value == "CSV_2D")
       {
 	std::unique_ptr<FLB::Shape> importedShape = std::make_unique<FLB::Imported2DShape>();
 	importedShape -> typeShape = FLB::TypeShape::Imported2DShape;
@@ -738,7 +934,7 @@ bool FLB::GeometryReader::getObstaclesData(const std::string& option, const std:
     {
       if (!existObstacle)
       {
-	terminal -> printf("Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
+	terminal -> printf("[GEOMETRY OPTIONS ERROR] Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
 	return false;
       }
 
@@ -753,7 +949,7 @@ bool FLB::GeometryReader::getObstaclesData(const std::string& option, const std:
     {
       if (!existObstacle)
       {
-	terminal -> printf("Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
+	terminal -> printf("[GEOMETRY OPTIONS ERROR] Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
 	return false;
       }
       // get the coordinates of the center
@@ -775,7 +971,7 @@ bool FLB::GeometryReader::getObstaclesData(const std::string& option, const std:
     {
       if (!existObstacle)
       {
-	terminal -> printf("Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
+	terminal -> printf("[GEOMETRY OPTIONS ERROR] Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
 	return false;
       }
       // get the rotation in sexadecimal degrees
@@ -802,7 +998,7 @@ bool FLB::GeometryReader::getObstaclesData(const std::string& option, const std:
     {
       if (!existObstacle)
       {
-	terminal -> printf("Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
+	terminal -> printf("[GEOMETRY OPTIONS ERROR] Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
 	return false;
       }
       if (mesh -> getObstacles()[elementNumber - 1] -> typeShape == FLB::TypeShape::Rectangle) mesh -> getObstacles()[elementNumber -1] -> setValue(std::stod(value), FLB::TypeValue::Height);
@@ -812,7 +1008,7 @@ bool FLB::GeometryReader::getObstaclesData(const std::string& option, const std:
     {
       if (!existObstacle)
       {
-	terminal -> printf("Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
+	terminal -> printf("[GEOMETRY OPTIONS ERROR] Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
 	return false;
       }
       if (mesh -> getObstacles()[elementNumber - 1] -> typeShape == FLB::TypeShape::Rectangle) mesh -> getObstacles()[elementNumber -1] -> setValue(std::stod(value), FLB::TypeValue::xWidth);
@@ -822,7 +1018,7 @@ bool FLB::GeometryReader::getObstaclesData(const std::string& option, const std:
     {
       if (!existObstacle)
       {
-	terminal -> printf("Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
+	terminal -> printf("[GEOMETRY OPTIONS ERROR] Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
 	return false;
       }
       if (mesh -> getObstacles()[elementNumber - 1] -> typeShape == FLB::TypeShape::Rectangle) mesh -> getObstacles()[elementNumber -1] -> setValue(std::stod(value), FLB::TypeValue::zWidth);
@@ -833,7 +1029,7 @@ bool FLB::GeometryReader::getObstaclesData(const std::string& option, const std:
     {
       if (!existObstacle)
       {
-	terminal -> printf("Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
+	terminal -> printf("[GEOMETRY OPTIONS ERROR] Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
 	return false;
       }
       if (mesh -> getObstacles()[elementNumber - 1] -> typeShape == FLB::TypeShape::Circle) mesh -> getObstacles()[elementNumber -1] -> setValue(std::stod(value), FLB::TypeValue::Radius);
@@ -843,7 +1039,7 @@ bool FLB::GeometryReader::getObstaclesData(const std::string& option, const std:
     {
       if (!existObstacle)
       {
-	terminal -> printf("Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
+	terminal -> printf("[GEOMETRY OPTIONS ERROR] Error in the line %d. It is neccesary to specify the type of Obstacle first\n", posLine);
 	return false;
       }
       if (mesh -> getObstacles()[elementNumber - 1] -> typeShape == FLB::TypeShape::Circle) mesh -> getObstacles()[elementNumber -1] -> setValue(std::stod(value), FLB::TypeValue::Thickness);

@@ -24,6 +24,7 @@
 
 //#define GL_SHADER_IMAGE_ACCESS_BARRIER_BIT 0x00000020
 #include <glm/gtx/io.hpp>
+#include <vector>
 
 namespace FLB 
 {
@@ -38,6 +39,7 @@ namespace FLB
     std::unique_ptr<FLB::Shader> textureXVelocity2DShader;
     std::unique_ptr<FLB::Shader> textureYVelocity2DShader;
     std::unique_ptr<FLB::Shader> textureMagVelocity2DShader;
+    std::unique_ptr<FLB::Shader> textureIsosurfaceShader;
     
     std::unique_ptr<FLB::Shader> instancedArrowShader;
     std::unique_ptr<FLB::Shader> instancedLinesShader;
@@ -73,7 +75,7 @@ std::unique_ptr<FLB::Font> FLB::Renderer::s_Font = nullptr;
 std::unique_ptr<FLB::Texture2D> FLB::Renderer::s_FontTexture = nullptr;
 
 
-void FLB::Renderer::init(const FLB::OptionsCalculation& optionsCalc,  Fl_Simple_Terminal* terminal, const FLB::Mesh* mesh)
+void FLB::Renderer::init(const FLB::OptionsCalculation& optionsCalc, Fl_Simple_Terminal* terminal, const FLB::Mesh* mesh)
 {
   // Shaders to use
   s_RendererData.pointsXVelocityShader = FLB::Shader::create("assets/shaders/pointsXVelocity.glsl", optionsCalc.graphicsAPI, terminal);
@@ -83,7 +85,7 @@ void FLB::Renderer::init(const FLB::OptionsCalculation& optionsCalc,  Fl_Simple_
   s_RendererData.textureXVelocity2DShader = FLB::Shader::create("assets/shaders/textureXVelocity2D.glsl", optionsCalc.graphicsAPI, terminal);
   s_RendererData.textureYVelocity2DShader = FLB::Shader::create("assets/shaders/textureYVelocity2D.glsl", optionsCalc.graphicsAPI, terminal);
   s_RendererData.textureMagVelocity2DShader = FLB::Shader::create("assets/shaders/textureMagnitudeVelocity2D.glsl", optionsCalc.graphicsAPI, terminal);
-
+ 
   s_RendererData.instancedArrowShader = FLB::Shader::create("assets/shaders/arrowInstancing.glsl", optionsCalc.graphicsAPI, terminal);
   
   s_RendererData.instancedLinesShader = FLB::Shader::create("assets/shaders/lineInstancing.glsl", optionsCalc.graphicsAPI, terminal);
@@ -104,9 +106,31 @@ void FLB::Renderer::init(const FLB::OptionsCalculation& optionsCalc,  Fl_Simple_
   {
     createQuad(optionsCalc.graphicsAPI, terminal, mesh);
     s_RendererData.scalarVectorialFieldsTexture = FLB::Texture2D::create(optionsCalc.graphicsAPI, mesh -> getNx() , mesh -> getNy(), FLB::ImageFormat::RG32F);
+    s_RendererData.textureIsosurfaceShader = FLB::Shader::create("assets/shaders/textureIsosurface2D.glsl", optionsCalc.graphicsAPI, terminal);
   }
 
   s_RendererData.maxMinCoordDomain = {mesh -> getxMax(), mesh -> getyMax(), mesh -> getxMin(), mesh -> getyMin()};
+}
+
+void FLB::Renderer::resetData()
+{
+  s_RendererData.vertexArrayQuad.reset();
+  s_RendererData.vertexBufferQuad.reset();
+  s_RendererData.pointsXVelocityShader.reset();
+  s_RendererData.pointsYVelocityShader.reset();
+  s_RendererData.pointsMagVelocityShader.reset();
+  s_RendererData.textureXVelocity2DShader.reset();
+  s_RendererData.textureYVelocity2DShader.reset();
+  s_RendererData.textureMagVelocity2DShader.reset();
+  s_RendererData.textureIsosurfaceShader.reset();
+  s_RendererData.instancedArrowShader.reset();
+  s_RendererData.instancedLinesShader.reset();
+  s_RendererData.font.reset();
+  s_RendererData.fontTexture.reset();
+  s_RendererData.scalarVectorialFieldsTexture.reset();
+  for (int i = 0; i < s_RendererData.colorMaps.size(); i++) s_RendererData.colorMaps[i].reset();
+  s_RendererData.rectangleMesh.reset();
+  s_RendererData.viewProjectionUniformBuffer.reset();
 }
 
 void FLB::Renderer::addInstanceRectangles(FLB::API api, Fl_Simple_Terminal* terminal, const FLB::Mesh* mesh)
@@ -180,14 +204,14 @@ void FLB::Renderer::setArrowShader()
 void FLB::Renderer::drawScalarVectorialField(const FLB::ScalarVectorialFieldComponent& scalarVectorialFieldComponent, size_t numPointsMesh)
 {
   s_RendererData.colorMaps[scalarVectorialFieldComponent.currentIdxColorMap] -> bind(0);
-  if (scalarVectorialFieldComponent.type == 0)
+  if (scalarVectorialFieldComponent.type == 0) // points
   {
     s_RendererData.shaderScalarVectorialFieldInUse -> bind();
     s_RendererData.shaderScalarVectorialFieldInUse -> setFloat2("u_MaxMinValues", scalarVectorialFieldComponent.maxMinValues);
     scalarVectorialFieldComponent.meshVertexArray -> bind();
     s_RendererAPI -> drawPoints(numPointsMesh, scalarVectorialFieldComponent.sizePoints);
   }
-  else 
+  else // texture 
   {
     s_RendererData.shaderScalarVectorialFieldInUse -> bind();
     s_RendererData.shaderScalarVectorialFieldInUse -> setFloat2("u_MaxMinValues", scalarVectorialFieldComponent.maxMinValues);
@@ -196,6 +220,22 @@ void FLB::Renderer::drawScalarVectorialField(const FLB::ScalarVectorialFieldComp
     s_RendererData.vertexArrayQuad -> bind();
     s_RendererAPI -> drawElements();
   }
+}
+
+void FLB::Renderer::drawIsoSurface(const FLB::IsoSurfaceComponent& isoSurfaceComponent, const std::array<float, 8>& cameraDomainCornersSI, bool updateIsoSurfaceBounds)
+{
+  s_RendererData.textureIsosurfaceShader -> bind();
+  isoSurfaceComponent.vertexArray -> bind();
+  if (updateIsoSurfaceBounds)
+  {
+    //std::cout << "cameraDOAMIN " << cameraDomainCornersSI[0] << " " <<cameraDomainCornersSI[2] << " " << cameraDomainCornersSI[1] << " "  << cameraDomainCornersSI[5] << "\n";
+    uint32_t size = cameraDomainCornersSI.size() * sizeof(float);
+    isoSurfaceComponent.vertexArray -> updateMemberBufferData(0, 0, size, (const void*)cameraDomainCornersSI.data());
+  }
+  isoSurfaceComponent.texture -> bind(0);
+  s_RendererData.textureIsosurfaceShader -> setFloat4("u_Color",isoSurfaceComponent.color);
+  s_RendererAPI -> drawElements();
+  isoSurfaceComponent.texture -> clear();
 }
 
 void FLB::Renderer::drawInstancedRectangles(int idx, bool updateValues, glm::vec4* color, glm::mat4* transform)

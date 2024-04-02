@@ -9,7 +9,6 @@ layout(std140, binding = 0) uniform u_ViewProjection
 	mat4 viewProjection;
 };
 
-//out float velocity;
 out vec2 textCoord;
 
 void main()

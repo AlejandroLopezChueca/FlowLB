@@ -14,8 +14,8 @@
 
 ////////////////////////////////////// ScalarFieldData //////////////////////////////////////
 template<typename T>
-FLB::ScalarFieldData<T>::ScalarFieldData(std::string name, std::string typeData, size_t numberPoints, const std::vector<T>& data)
-  : m_NameField(name), m_DataType(typeData), m_NumPoints(numberPoints), m_DataField(data)  {}
+FLB::ScalarFieldData<T>::ScalarFieldData(std::string name, std::string typeData, size_t numberPoints, const std::vector<T>& data, const double constantToSI)
+  : m_NameField(name), m_DataType(typeData), m_NumPoints(numberPoints), m_DataField(data), m_ConstantToSI(constantToSI)  {}
 
 template<typename T>
 void FLB::ScalarFieldData<T>::writeData(std::ofstream &ofs)
@@ -34,20 +34,22 @@ void FLB::ScalarFieldData<T>::writeData(std::ofstream &ofs)
 ////////////////////////////////////// VectorFieldData //////////////////////////////////////
 
 template<typename T>
-FLB::VectorFieldData<T>::VectorFieldData(std::string name, std::string typeData, size_t numberPoints, const std::vector<T>& data, uint32_t numberComponents)
-  : m_NameField(name), m_DataType(typeData), m_NumPoints(numberPoints), m_DataField(data),  m_NumberComponents(numberComponents) {}
+FLB::VectorFieldData<T>::VectorFieldData(std::string name, std::string typeData, size_t numberPoints, const std::vector<T>& data, uint32_t numberComponents, const double constantToSI, const bool changeSignYComponent)
+  : m_NameField(name), m_DataType(typeData), m_NumPoints(numberPoints), m_DataField(data),  m_NumberComponents(numberComponents), m_ConstantToSI(constantToSI), m_ChangeSignYComponent(changeSignYComponent) {}
 
 template<typename T>
 void FLB::VectorFieldData<T>::writeData(std::ofstream &ofs)
 {
   ofs << "<DataArray type=\"" << m_DataType << "\" Name=\"" << m_NameField << "\" NumberOfComponents=\"" + std::to_string(m_NumberComponents) +"\" format=\"ascii\">\n";
 
+  const double constantChangeYSign = m_ChangeSignYComponent ? -1.0 : 1.0;
+
   if (m_NumberComponents == 2)
   { 
     for (unsigned int idx = 0; idx < m_NumPoints; idx++)
     {
       ofs << m_DataField[idx] << " "; // x
-      ofs << m_DataField[idx + m_NumPoints] << "\n"; // y
+      ofs << m_DataField[idx + m_NumPoints] * constantChangeYSign<< "\n"; // y
     }
   }
   else if (m_NumberComponents == 3)
@@ -55,7 +57,7 @@ void FLB::VectorFieldData<T>::writeData(std::ofstream &ofs)
     for (unsigned int idx = 0; idx < m_NumPoints; idx++)
     {
       ofs << m_DataField[idx] << " ";
-      ofs << m_DataField[idx + m_NumPoints] << " ";
+      ofs << m_DataField[idx + m_NumPoints] * constantChangeYSign << " ";
       ofs << m_DataField[idx + 2 * m_NumPoints] << "\n";
     }
 
@@ -70,16 +72,16 @@ FLB::Writer::Writer(const std::filesystem::path directoryPath)
 }
 
 template<typename T>
-void FLB::Writer::addField(std::string typeData, std::string nameField, const std::vector<T>& data, size_t numberPoints, bool isScalar, uint32_t numberComponents)
+void FLB::Writer::addField(std::string typeData, std::string nameField, const std::vector<T>& data, size_t numberPoints, bool isScalar, double constantToSI, uint32_t numberComponents, bool changeSignYComponent)
 {
   if (isScalar)
   {
-    std::unique_ptr<FLB::ScalarFieldData<T>> field(new FLB::ScalarFieldData<T>(nameField, typeData, numberPoints, data));
+    std::unique_ptr<FLB::ScalarFieldData<T>> field(new FLB::ScalarFieldData<T>(nameField, typeData, numberPoints, data, constantToSI));
   m_FieldsData.push_back(std::move(field));
   }
   else
   {
-    std::unique_ptr<FLB::VectorFieldData<T>> field(new FLB::VectorFieldData<T>(nameField, typeData, numberPoints, data, numberComponents));
+    std::unique_ptr<FLB::VectorFieldData<T>> field(new FLB::VectorFieldData<T>(nameField, typeData, numberPoints, data, numberComponents, constantToSI, changeSignYComponent));
   m_FieldsData.push_back(std::move(field));
   }
 }
@@ -324,6 +326,6 @@ template class FLB::ScalarFieldData<uint8_t>;
 template class FLB::VectorFieldData<float>;
 template class FLB::VectorFieldData<double>;
 
-template void FLB::Writer::addField<uint8_t>(std::string typeData, std::string nameField, const std::vector<uint8_t>& data, size_t numberPoints, bool isScalar, uint32_t numberComponents);
-template void FLB::Writer::addField<float>(std::string typeData, std::string nameField, const std::vector<float>& data, size_t numberPoints, bool isScalar, uint32_t numberComponents);
-template void FLB::Writer::addField<double>(std::string typeData, std::string nameField, const std::vector<double>& data, size_t numberPoints, bool isScalar, uint32_t numberComponents);
+template void FLB::Writer::addField<uint8_t>(std::string typeData, std::string nameField, const std::vector<uint8_t>& data, size_t numberPoints, bool isScalar, double  constantToSI, uint32_t numberComponents, bool changeSignYComponent);
+template void FLB::Writer::addField<float>(std::string typeData, std::string nameField, const std::vector<float>& data, size_t numberPoints, bool isScalar, double constantToSI, uint32_t numberComponents, bool changeSignYComponent);
+template void FLB::Writer::addField<double>(std::string typeData, std::string nameField, const std::vector<double>& data, size_t numberPoints, bool isScalar, double constantToSI, uint32_t numberComponents, bool changeSignYComponent);

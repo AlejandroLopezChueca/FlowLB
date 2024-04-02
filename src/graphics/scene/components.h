@@ -2,14 +2,19 @@
 
 #include "geometry/mesh.h"
 #include "graphics/scene/componentsMesh.h"
+#include "graphics/texture.h"
 #include "graphics/vertexArray.h"
 
+#include <array>
 #include <cstddef>
 #include <glm/fwd.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <memory>
+#include <string>
+#include <vector>
+#include <driver_types.h>
 
 namespace FLB
 {
@@ -113,6 +118,36 @@ namespace FLB
     int idx;
 
     RectangleComponent() = default;
+  };
+
+  struct IsoSurfaceComponent
+  {
+    glm::vec4 color{1.0f, 0.0f, 0.0f, 1.0f};
+    std::unique_ptr<FLB::IsoSurfaceMesh> mesh;
+    std::vector<std::string> availableIsosurface = {"Velocity", "Phi"};
+    int type = 0; // 0 for velocity and 1 for phi
+  
+    float isoValue = 0.5f;
+    unsigned int textureWidth;
+    unsigned int textureHeight;
+    unsigned int newTextureWidth; // save copy to use in resizing
+    unsigned int newTextureHeight; 
+    FLB::VertexArray* vertexArray;
+    FLB::Texture2D* texture;
+    bool* draw;
+
+    // If CUDA is used, it is necessary to register the texture in CUDA
+    struct cudaGraphicsResource* cudaResTextureIsoSurface;
+
+    IsoSurfaceComponent(FLB::API api, Fl_Simple_Terminal* terminal, bool* drawComponent, const FLB::Mesh* meshDomain, uint32_t width, uint32_t height, std::array<float, 8>& vertices)
+      : draw(drawComponent)
+    {
+      textureWidth = width; textureHeight = height;
+      newTextureWidth = width; newTextureHeight = height;
+      mesh = std::make_unique<FLB::IsoSurfaceMesh>(api, terminal, meshDomain, width, height, vertices);
+      vertexArray = mesh -> getVertexArray();
+      texture = mesh -> getTexture();
+    }
   };
 
 }

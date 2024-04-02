@@ -28,6 +28,10 @@ namespace FLB
       
       void setGizmoOperation(int* gizmoOperation) override {s_GizmoOperation = gizmoOperation;}
 
+      bool isInitialized() const override {return m_IsInitialized;} 
+      bool getMousePos(glm::dvec2& mousePos) const override;
+      bool isLeftButtonMouseClicked() const override;
+
       //bool isKeyPressed(int keyCode) override;
 
       //bool render;
@@ -40,10 +44,11 @@ namespace FLB
 
       static void debugMessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam);
 
-      GLFWwindow* m_renderWindow;
-      static bool s_GLFWInitialized;
+      GLFWwindow* m_renderWindow = nullptr;
       static T* s_cameraController;
       static int* s_GizmoOperation;
+
+      bool m_IsInitialized = false;
       
 
   };

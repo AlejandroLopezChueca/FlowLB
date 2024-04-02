@@ -1,4 +1,5 @@
 #include "renderLayer.h"
+#include "graphics/cameraController.h"
 #include "panels/hierarchyPanel.h"
 #include "panels/addPanel.h"
 #include "ImGuiLayer.h"
@@ -19,6 +20,7 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "ImGuizmo.h"
+#include "panels/settingsPanel.h"
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
@@ -34,6 +36,7 @@ FLB::RenderLayer::RenderLayer(FLB::Mesh* mesh, const FLB::OptionsCalculation& op
 
 FLB::RenderLayer::~RenderLayer()
 {
+  FLB::Renderer::resetData();
 }
 
 void FLB::RenderLayer::onUpdate()
@@ -48,13 +51,14 @@ void FLB::RenderLayer::onUpdate()
   }
 
   // Render
-  m_OrthographicCameraController -> GLFWUpdate(m_GLFWwindow);
   m_Framebuffer -> bind();
   FLB::Renderer::setClearColor({0.5f, 0.5f, 0.5f, 1});
   FLB::Renderer::clear();
   FLB::Renderer::beginScene(m_OrthographicCameraController -> getCamera());
 
-  m_Scene -> update(m_OrthographicCameraController->getCamera());
+  m_Scene -> update(m_OrthographicCameraController.get());
+  // update camera after scene to synchronize the creation of isosurfaces in cuda with the visualization with OpenGL
+  m_OrthographicCameraController -> GLFWUpdate(m_GLFWwindow);
   
   m_Framebuffer -> unbind();
 
@@ -80,9 +84,12 @@ void FLB::RenderLayer::onAttach(FLB::Mesh* mesh, const FLB::OptionsCalculation& 
   if (optionsCalc.typeAnalysis == 0) //2D
   {
     m_OrthographicCameraController = std::make_unique<FLB::OrthographicCameraController>(1600.0f, 900.0f);
+    m_OrthographicCameraController -> setDomainData(mesh);
     m_RenderWindow = FLB::Window::create<FLB::OrthographicCameraController>(optionsCalc.graphicsAPI, m_OrthographicCameraController.get(), optionsCalc.typeAnalysis, terminal);
     m_RenderWindow -> setGizmoOperation(&m_GizmoOperation);
     ImGuizmo::SetOrthographic(true);
+  
+    m_SettingsPanel2D = std::make_unique<FLB::SettingsPanel2D>(m_OrthographicCameraController.get(), this);
   }
   else if (optionsCalc.typeAnalysis == 1) //3D
   {
@@ -107,12 +114,20 @@ void FLB::RenderLayer::onAttach(FLB::Mesh* mesh, const FLB::OptionsCalculation& 
   m_ImGuiLayer -> setContext(m_RenderWindow.get());
 
   m_Scene = std::make_unique<FLB::Scene>(mesh);
+  if (optionsCalc.typeAnalysis == 0) m_Scene -> setOrthographicCameraController(m_OrthographicCameraController.get());
+  m_Scene -> setCalculationAPI(optionsCalc.calculationAPI);
+
   m_TypeRendering = m_Scene -> getRenderingScalarVectorialField();
 
   m_HierarchyPanel = std::make_unique<FLB::HierarchyPanel>(optionsCalc.graphicsAPI);
   m_HierarchyPanel -> setScene(m_Scene.get());
 
-  m_MetricsPanel = std::make_unique<FLB::MetricsPanel>(optionsCalc.graphicsAPI, mesh, m_Time);
+  m_MetricsPanel = std::make_unique<FLB::MetricsPanel>(optionsCalc.graphicsAPI, mesh, m_Time, m_MiliSecondsSimulation, m_FrameRateSimulation);
+  
+  m_IsosurfacePanel = std::make_unique<FLB::IsosurfacePanel>(optionsCalc.graphicsAPI, optionsCalc.calculationAPI, terminal, mesh);
+  m_IsosurfacePanel ->setScene(m_Scene.get());
+
+  if (optionsCalc.typeAnalysis == 0) m_ConsultValuesPanel = std::make_unique<FLB::ConsultValuesPanel>(FLB::Renderer::getScalarFieldsTexture(), m_RenderWindow.get(), m_OrthographicCameraController.get(), m_HierarchyPanel -> getCurrentIdxVectorRepresentation(), m_Scene -> getScalarVectorialFieldComponent().idField);
 }
 
 void FLB::RenderLayer::onImGuiRender()
@@ -149,6 +164,8 @@ void FLB::RenderLayer::onImGuiRender()
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
   ImGui::Begin("DockSpaceDemo", &dockspaceOpen, window_flags);
   ImGui::PopStyleVar(); // end 0 padding for viewport
+			//
+  ImGui::SetKeyOwner(ImGuiMod_Alt,1); // disable Alt key
 
   if (opt_fullscreen) ImGui::PopStyleVar(2);
 
@@ -177,10 +194,12 @@ void FLB::RenderLayer::onImGuiRender()
       if (ImGui::MenuItem("Hierarchy panel")) m_ShowHierarchyPanel = true;
       ImGui::Separator();
       if (ImGui::MenuItem("Metrics")) m_ShowMetricsPanel = true;
+      if (ImGui::MenuItem("Consult Values")) m_ShowConsultValuesPanel = true;
       ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Settings"))
     {
+      if (ImGui::MenuItem("General Settings")) m_ShowSettingsPanel = true; 
       ImGui::EndMenu();
     }
     
@@ -188,6 +207,11 @@ void FLB::RenderLayer::onImGuiRender()
     {
       if (ImGui::MenuItem("Scalar/Vectorial Field")) addScalarVectorField();
       if (ImGui::MenuItem("Glyphs")) addGlyph();
+      if (ImGui::MenuItem("Isosurface")) 
+      {
+	FLB::Renderer::s_UpdateRender = false;
+	m_ShowIsosurfacePanel = true;
+      }
       ImGui::EndMenu();
     }
     ImGui::EndMenuBar();
@@ -196,6 +220,9 @@ void FLB::RenderLayer::onImGuiRender()
   // show panels
   if (m_ShowHierarchyPanel) m_HierarchyPanel -> onImGuiRender(&m_ShowHierarchyPanel);
   if (m_ShowMetricsPanel) m_MetricsPanel -> onImGuiRender(&m_ShowMetricsPanel);
+  if (m_ShowSettingsPanel) m_SettingsPanel2D -> onImGuiRender(&m_ShowSettingsPanel);
+  if (m_ShowIsosurfacePanel) m_IsosurfacePanel -> onImGuiRender(&m_ShowIsosurfacePanel);
+  if (m_ShowConsultValuesPanel) m_ConsultValuesPanel -> onImGuiRender(&m_ShowConsultValuesPanel, m_ViewportBounds);
 
   // Viewport
   ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 });
@@ -254,6 +281,24 @@ void FLB::RenderLayer::onImGuiRender()
   ImGui::End(); // end dockspace
 }
 
+const bool* FLB::RenderLayer::isIsosurfaceRendering() const
+{
+  return m_Scene -> isIsosurfaceRendering();
+}
+
+const FLB::IsoSurfaceComponent& FLB::RenderLayer::getIsoSurfaceComponent() const
+{
+  auto view = m_Scene -> getRegistry().view<FLB::IsoSurfaceComponent>();
+  // Return only the first
+  return view.get<FLB::IsoSurfaceComponent>(*view.begin());
+}
+
+void FLB::RenderLayer::setUsedFreeMemoryGPU(std::array<float, 2> usedFreeMemory)
+{
+  m_MetricsPanel ->m_UsedMemory = usedFreeMemory[0];
+  m_MetricsPanel ->m_FreeMemory = usedFreeMemory[1];
+}
+
 void FLB::RenderLayer::addGlyph()
 {
   // Stop calculations to facilitate the characterization of the entity
@@ -290,9 +335,13 @@ void FLB::RenderLayer::addGlyph()
   }
 }
 
+void FLB::RenderLayer::addIsosurface()
+{
+  FLB::Renderer::s_UpdateRender = false;
+}
+
 void FLB::RenderLayer::addScalarVectorField()
 {
   // Stop calculations to facilitate the characterization of the entity
   FLB::Renderer::s_UpdateRender = false;
-
 }

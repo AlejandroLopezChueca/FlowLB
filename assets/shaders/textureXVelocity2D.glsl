@@ -13,7 +13,7 @@ out vec2 textCoord;
 
 void main()
 {
-  gl_Position = viewProjection * vec4(a_QuadPoints, 1.0);
+  gl_Position = viewProjection * vec4(a_QuadPoints, 1.0f);
   textCoord = a_QuadTextCoord;
 }
 
@@ -33,5 +33,5 @@ layout(binding = 1) uniform sampler2D u_Texture;
 void main()
 {
   float velocity = (texture(u_Texture, textCoord).x - u_MaxMinValues.y)/(u_MaxMinValues.x - u_MaxMinValues.y);
-  color = texture(u_ColorMap, max(velocity, 0));
+  color = texture(u_ColorMap, max(velocity, 0.0f));
 }

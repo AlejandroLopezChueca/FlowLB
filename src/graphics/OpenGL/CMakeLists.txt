@@ -28,4 +28,5 @@ target_sources(OpenGL_graphics
       ${CMAKE_SOURCE_DIR}/dependencies/msdf-atlas-gen/msdf-atlas-gen
       ${CMAKE_SOURCE_DIR}/dependencies/imgui
       ${CMAKE_SOURCE_DIR}/dependencies/ImGuizmo
-      ${CMAKE_SOURCE_DIR}/src)
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})

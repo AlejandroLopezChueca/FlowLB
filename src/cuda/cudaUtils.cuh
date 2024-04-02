@@ -1,13 +1,17 @@
 #pragma once
 
 #include "geometry/mesh.h"
+#include "graphics/texture.h"
 
+#include <array>
 #include <cstdint>
+#include <initializer_list>
 #include <stdlib.h>
 #include <stdio.h>
 #include <cuda_runtime.h>
 #include "FL/Fl_Simple_Terminal.H"
 #include "surface_types.h"
+#include <cuda_gl_interop.h>
 
 
 template <typename T>
@@ -24,13 +28,29 @@ void checkCuda(T result, char const *const func, const char *const file, int con
 namespace FLB::CudaUtils
 {
   template<typename PRECISION>
-  void copyDataFromDevice(size_t numPointsMesh, unsigned int numDimensions, PRECISION* d_u, PRECISION* h_u)
+  struct copyDataElement
   {
-    size_t fieldSize = numDimensions * numPointsMesh * sizeof(PRECISION);
-    checkCudaErrors(cudaMemcpy(h_u, d_u, fieldSize, cudaMemcpyDeviceToHost));
+    const unsigned int numDimensions;
+    PRECISION* h_ptr;
+    PRECISION* d_ptr;
+
+    copyDataElement<PRECISION>(const unsigned int numberDimensions, PRECISION* host_ptr, PRECISION* device_ptr) 
+      : numDimensions(numberDimensions), h_ptr(host_ptr), d_ptr(device_ptr) {}
+  };
+
+  template<typename PRECISION>
+  void copyDataFromDevice(size_t numPointsMesh, const std::initializer_list<copyDataElement<PRECISION>>& listElements)
+  {
+    for (auto& element : listElements)
+    {
+      size_t fieldSize = element.numDimensions * numPointsMesh * sizeof(PRECISION);
+    checkCudaErrors(cudaMemcpy(static_cast<void*>(element.h_ptr), static_cast<const void*>(element.d_ptr), fieldSize, cudaMemcpyDeviceToHost));
+    }
   }
  
   void printInfoDevice(Fl_Simple_Terminal* terminal);
+
+  std::array<float, 2> getUsedFreeMemory(Fl_Simple_Terminal* terminal);
 
 
   /**
@@ -60,6 +80,8 @@ namespace FLB::CudaUtils
     */
   template <typename PRECISION>
   __global__ void save2DDataToOpenGL(PRECISION* v, cudaSurfaceObject_t d_SurfaceTexture);
+
+  void mapTexture2DToOpenGL(struct cudaGraphicsResource** cudaResource, const FLB::Texture2D* texture2D, unsigned int flags);
 }
 
 

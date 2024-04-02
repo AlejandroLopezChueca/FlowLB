@@ -5,7 +5,6 @@ layout(location = 0) in vec3 a_PoinstPosition;
 layout(location = 1) in vec3 a_QuadPoints;
 layout(location = 2) in vec2 a_QuadTextCoord;
 layout(location = 3) in vec2 a_U;
-//layout(location = 4) in float a_Uy;
 
 layout(std140, binding = 0) uniform u_ViewProjection
 {

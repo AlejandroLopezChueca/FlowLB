@@ -46,6 +46,7 @@ namespace FLB
 
       size_t getNumberPointsMesh() const {return m_NumPointsMesh;}
       std::vector<std::unique_ptr<FLB::Shape>>& getObstacles() {return m_Obstacles;}
+      std::vector<std::unique_ptr<FLB::Shape>>& getInitialConditionShapes() {return m_InitialConditionShapes;}
       const std::vector<uint8_t>& getDomainFlags() const {return m_DomainFlags;}
       std::vector<uint8_t>& getDomainFlags() {return m_DomainFlags;}
       std::vector<std::unique_ptr<FLB::CDW>>& getCDWs() {return m_CDWs;}
@@ -78,7 +79,6 @@ namespace FLB
 
       bool& getIs3D() {return m_Is3D;}
       bool is3D() const {return m_Is3D;}
-      bool isFreeSurface() const {return m_IsFreeSurface;}
 
       void setupGraphicsOptions(FLB::API api, Fl_Simple_Terminal* terminal);
 
@@ -90,6 +90,7 @@ namespace FLB
       std::unique_ptr<FLB::VertexBuffer> m_VertexBufferDomain;
       
       std::vector<std::unique_ptr<FLB::Shape>> m_Obstacles;
+      std::vector<std::unique_ptr<FLB::Shape>> m_InitialConditionShapes;
       std::vector<std::unique_ptr<FLB::CDW>> m_CDWs;
       std::vector<Point> m_Points; //points of the CDW
       std::vector<uint8_t> m_DomainFlags;
@@ -105,7 +106,6 @@ namespace FLB
       bool m_Is3D;
       
       // The problem is Free surface or it is with only one fluid
-      bool m_IsFreeSurface;
       
       // Indices of the points i the corners of the domain
       std::array<uint32_t, 4> m_IndicesCorners;
@@ -116,11 +116,10 @@ namespace FLB
       // Separation (m) between CDWs. It is the distance between consecutive centers
       double m_SeparationCDW;
       
-
       //  Max and min values of the domain
       double m_xMax, m_xMin, m_yMax, m_yMin, m_zMax, m_zMin;
 
       BBox m_BBoxCDWs;
-
   };
+
  }

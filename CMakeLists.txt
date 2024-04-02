@@ -184,6 +184,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC s_ImGuizmo)
 # INTERNAL LIBRARIES
 #******************************************************************************************************************
 
+add_subdirectory(src/cuda)
 add_library(ui)
 add_subdirectory(src/ui)
 add_library(panels)
@@ -191,7 +192,6 @@ add_subdirectory(src/ui/panels)
 add_library(io)
 add_subdirectory(src/io)
 #add_library(cuda_fluid)
-add_subdirectory(src/cuda)
 add_library(main_src)
 add_subdirectory(src)
 add_library(graphics)

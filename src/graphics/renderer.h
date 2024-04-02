@@ -34,6 +34,8 @@ namespace FLB
 
       static void init(const FLB::OptionsCalculation& optionsCalc, Fl_Simple_Terminal* terminal, const FLB::Mesh* mesh);
 
+      static void resetData();
+
       static void addInstanceRectangles(FLB::API api, Fl_Simple_Terminal* terminal, const FLB::Mesh* mesh);
       static void removeInstanceRectangles(uint32_t idx);
 
@@ -47,6 +49,7 @@ namespace FLB
       static void clear() {s_RendererAPI -> clear();}
       
       static void drawScalarVectorialField(const FLB::ScalarVectorialFieldComponent& scalarVectorialFieldsTexture, size_t numPointsMesh);
+      static void drawIsoSurface(const FLB::IsoSurfaceComponent& IsoSurfaceComponent, const std::array<float, 8>& cameraDomainCornersSI, bool updateIsoSurfaceBounds);
       static void drawInstancedRectangles(int idx, bool updateValues, glm::vec4* color, glm::mat4* transform);
       static void drawInstancedArrows(const FLB::Arrow2DComponent& arrow2DComponent, const FLB::TransformComponent& transformComponent);
       static void drawString(const std::string& string);

@@ -34,6 +34,9 @@ namespace FLB
       virtual void bind(uint32_t slot) const = 0;
 
       virtual void setData(void* data, uint32_t size) = 0;
+      virtual void clear() const = 0;
+
+      virtual void readPixels(const int xOffset, const int yOffset, const uint32_t width, const uint32_t height, const uint32_t buffSize, void* data) const = 0;
   };
 
   class Texture1D: public Texture
@@ -47,6 +50,8 @@ namespace FLB
   class Texture2D: public Texture
   {
     public:
+      virtual void resize(uint32_t width, uint32_t height) = 0;
+
       static std::unique_ptr<Texture2D> create(FLB::API api, uint32_t width, uint32_t height, ImageFormat format);
       static std::unique_ptr<Texture2D> create(FLB::API api, const std::filesystem::path& path);
   };

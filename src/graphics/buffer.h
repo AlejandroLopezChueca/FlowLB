@@ -15,7 +15,7 @@ namespace FLB
 {
   enum class ShaderDataType
   {
-    None = 0, Float, Float2, SOAFloat2, Float3, Float4, Mat4
+    None = 0, Uint8, Float, Float2, SOAFloat2, Float3, Float4, Mat4
   };
 
   static uint32_t ShaderDataTypeSize(ShaderDataType type);

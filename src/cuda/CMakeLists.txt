@@ -3,16 +3,16 @@ target_sources(${PROJECT_NAME} #cuda_fluid
   PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/lbmKernel2D.cu
     ${CMAKE_CURRENT_LIST_DIR}/cudaInitData.cu
-    ${CMAKE_CURRENT_LIST_DIR}/graphics.cu 
     ${CMAKE_CURRENT_LIST_DIR}/runCuda.cu
     ${CMAKE_CURRENT_LIST_DIR}/cudaUtils.cu
+    ${CMAKE_CURRENT_LIST_DIR}/cudaIsosurface.cu
   PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/lbmKernel2D.cuh
     ${CMAKE_CURRENT_LIST_DIR}/cudaInitData.cuh
-    ${CMAKE_CURRENT_LIST_DIR}/graphics.cuh 
     ${CMAKE_CURRENT_LIST_DIR}/runCuda.cuh
     ${CMAKE_CURRENT_LIST_DIR}/cellCalculations.cuh
-    ${CMAKE_CURRENT_LIST_DIR}/cudaUtils.cuh)
+    ${CMAKE_CURRENT_LIST_DIR}/cudaUtils.cuh
+    ${CMAKE_CURRENT_LIST_DIR}/cudaIsosurface.cuh)
 
   #include_directories(${CMAKE_SOURCE_DIR}/src)
 target_include_directories( ${PROJECT_NAME} #cuda_fluid 

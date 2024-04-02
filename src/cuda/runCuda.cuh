@@ -27,8 +27,14 @@ namespace FLB
 
   template<typename PRECISION>
   void h_runCudaMonoFluidOpenGL2D(FLB::OptionsCalculation& optionsCalc, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal, FLB::RenderLayer* renderLayer, FLB::Units& unitsConverter, std::vector<PRECISION>& h_u, PRECISION* d_f, PRECISION* d_rho, uint8_t* d_flags, PRECISION* d_mass);
+
+  template<typename PRECISION>
+  void h_runCudaFreeSurfaceOpenGL2D(FLB::OptionsCalculation& optionsCalc, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal, FLB::RenderLayer* renderLayer, FLB::Units& unitsConverter, std::vector<PRECISION>& h_u, PRECISION* d_f, PRECISION* d_rho, uint8_t* d_flags, PRECISION* d_mass, PRECISION* d_excessMass, PRECISION* d_phi);
   
   template<typename PRECISION>
-  void h_runCudaMonoFluidNoGraphics2D(FLB::OptionsCalculation& optionsCalc, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal, FLB::Units& unitsConverter, PRECISION* d_u, std::vector<PRECISION>& h_u, PRECISION* d_f, PRECISION* d_rho, uint8_t* d_flags, PRECISION* d_mass, std::filesystem::path& directorySave);
+  void h_runCudaMonoFluidNoGraphics2D(FLB::OptionsCalculation& optionsCalc, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal, FLB::Units& unitsConverter, PRECISION* d_u, std::vector<PRECISION>& h_u, PRECISION* d_f, PRECISION* d_rho, std::vector<PRECISION>& h_rho, uint8_t* d_flags, PRECISION* d_mass, std::filesystem::path& directorySave);
+
+  template<typename PRECISION>
+  void h_runCudaFreeSurfaceNoGraphics2D(FLB::OptionsCalculation &optionsCalc, FLB::Mesh *mesh, Fl_Simple_Terminal *terminal, FLB::Units& unitsConverter, PRECISION* d_u, std::vector<PRECISION> &h_u, PRECISION *d_f, PRECISION *d_rho, std::vector<PRECISION>& h_rho, uint8_t *d_flags, PRECISION *d_mass, PRECISION *d_excessMass, PRECISION *d_phi, std::vector<PRECISION>& h_phi, std::filesystem::path& directorySave);
 
 }

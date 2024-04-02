@@ -1,3 +1,6 @@
+
+#target_link_libraries(panels PRIVATE CUDA::cudart_static)
+
 target_sources(panels
   PUBLIC  
     ${CMAKE_CURRENT_LIST_DIR}/addPanel.cpp
@@ -27,4 +30,5 @@ target_include_directories(panels
     ${CMAKE_SOURCE_DIR}/dependencies/imgui/backends
     ${CMAKE_SOURCE_DIR}/dependencies/tinyfiledialogs
     ${CMAKE_SOURCE_DIR}/dependencies/msdf-atlas-gen/msdfgen
-    ${CMAKE_SOURCE_DIR}/dependencies/msdf-atlas-gen/msdf-atlas-gen)
+    ${CMAKE_SOURCE_DIR}/dependencies/msdf-atlas-gen/msdf-atlas-gen
+    ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})

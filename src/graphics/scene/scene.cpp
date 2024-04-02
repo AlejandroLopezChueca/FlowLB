@@ -1,14 +1,17 @@
 #include "scene.h"
+#include "graphics/cameraController.h"
 #include "graphics/renderer.h"
 #include "entity.h"
 #include "components.h"
 
+#include <array>
 #include <cstdint>
 #include <iostream>
 
 FLB::Scene::Scene(const FLB::Mesh* mesh)
   : m_ScalarVectorialFieldComponent(mesh -> getVertexArray()), m_NumPointsMesh(mesh -> getNumberPointsMesh())
 {
+  m_DrawIsosurface = &m_DefaultDrawIsosurface;
 }
 
 FLB::Entity FLB::Scene::createEntity(const std::string &name)
@@ -41,14 +44,34 @@ void FLB::Scene::destroyEntity(FLB::Entity &entity)
     }
     FLB::Renderer::removeInstanceRectangles(idxToDelete);
   }
+  
+  // prevent indeterminate behaviour
+  if (entity.hasComponent<FLB::IsoSurfaceComponent>()) 
+  {
+    // TODO Only valid for one isosurface 
+    m_DrawIsosurface = &m_DefaultDrawIsosurface;
+  }
 
   m_Registry.destroy(entity);
 }
 
-void FLB::Scene::update(const FLB::OrthographicCamera &camera)
+void FLB::Scene::update(FLB::OrthographicCameraController* cameraController)
 {
   // Scalar/Vectorial fields
-  FLB::Renderer::drawScalarVectorialField(m_ScalarVectorialFieldComponent, m_NumPointsMesh);
+  if (m_DrawScalarVectorialField) FLB::Renderer::drawScalarVectorialField(m_ScalarVectorialFieldComponent, m_NumPointsMesh);
+
+  if (*m_DrawIsosurface) 
+  {
+    bool updateIsoSurfaceBounds = cameraController -> getUpdateCameraDomainCornersSI();
+    // Only calculate again if the camera is moved or the frameBuffer is resized
+    const std::array<float, 8>& cameraDomainCornersSI = cameraController -> getCameraDomainBoundsSI(); // coordiantes of the doomain's corners that are view by the camera 
+    auto view = m_Registry.view<FLB::IsoSurfaceComponent>();
+    for (auto entity : view)
+    {
+      FLB::IsoSurfaceComponent& component = view.get<FLB::IsoSurfaceComponent>(entity);
+      if (*component.draw) FLB::Renderer::drawIsoSurface(component, cameraDomainCornersSI, updateIsoSurfaceBounds);
+    }
+  }
 
   // Rectangles
   if (m_NumActiveRectangles)

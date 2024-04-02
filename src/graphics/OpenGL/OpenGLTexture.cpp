@@ -23,6 +23,20 @@ namespace FLB::GLTextureUtils
       case FLB::ImageFormat::RGBA32F: return GL_RGBA32F; 
     }
   }
+
+  static GLenum FLBImageFormatToBaseInternalGL(FLB::ImageFormat format)
+  {
+    switch (format) 
+    {
+      case FLB::ImageFormat::R8:      return GL_RED;
+      case FLB::ImageFormat::RGB8:    return GL_RGB;
+      case FLB::ImageFormat::RGBA8:   return GL_RGBA;
+      case FLB::ImageFormat::R32F:    return GL_RED;
+      case FLB::ImageFormat::RG32F:   return GL_RG;
+      case FLB::ImageFormat::RGB32F:  return GL_RGB;
+      case FLB::ImageFormat::RGBA32F: return GL_RGBA; 
+    }
+  }
 }
 
 /////////////////////////////////// OpenGLTexture1D ///////////////////////////////////
@@ -38,6 +52,8 @@ FLB::OpenGLTexture1D::OpenGLTexture1D(const std::vector<glm::vec3>& colors)
   glTexParameteri(GL_TEXTURE_1D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexImage1D(GL_TEXTURE_1D, 0, GL_RGB32F, colors.size(), 0, GL_RGB, GL_FLOAT, colors.data());
   glBindTexture(GL_TEXTURE_1D, 0);
+  m_InternalFormat = GL_RGB32F;
+  m_DataFormat = GL_RGB;
 }
 
 FLB::OpenGLTexture1D::~OpenGLTexture1D()
@@ -62,6 +78,16 @@ void FLB::OpenGLTexture1D::setData(void *data, uint32_t size)
 
 }
 
+void FLB::OpenGLTexture1D::clear() const
+{
+  glClearTexImage(m_RendererID, 0, m_DataFormat, GL_UNSIGNED_BYTE, 0);
+}
+
+void FLB::OpenGLTexture1D::readPixels(const int xOffset, const int yOffset, const uint32_t width, const uint32_t height, const uint32_t buffSize, void* data) const
+{
+
+}
+
 
 /////////////////////////////////// OpenGLTexture2D ///////////////////////////////////
 
@@ -69,15 +95,8 @@ FLB::OpenGLTexture2D::OpenGLTexture2D(uint32_t width, uint32_t height, FLB::Imag
   : m_Width(width), m_Height(height)
 {
   m_InternalFormat = FLB::GLTextureUtils::FLBImageFormatToInternalGL(format);
-
-  glCreateTextures(GL_TEXTURE_2D, 1, &m_RendererID);
-  glBindTexture(GL_TEXTURE_2D, m_RendererID);
-
-  glTexStorage2D(GL_TEXTURE_2D, 1, m_InternalFormat, m_Width, m_Height);
-
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glBindTexture(GL_TEXTURE_2D, 0);
+  m_DataFormat = FLB::GLTextureUtils::FLBImageFormatToBaseInternalGL(format);
+  createWithDimensions();
 }
 
 FLB::OpenGLTexture2D::OpenGLTexture2D(const std::filesystem::path& path)
@@ -142,6 +161,20 @@ FLB::OpenGLTexture2D::~OpenGLTexture2D()
   glDeleteTextures(1, &m_RendererID);
 }
 
+void FLB::OpenGLTexture2D::createWithDimensions()
+{
+  if (m_RendererID) glDeleteTextures(1, &m_RendererID);
+
+  glCreateTextures(GL_TEXTURE_2D, 1, &m_RendererID);
+  glBindTexture(GL_TEXTURE_2D, m_RendererID);
+
+  glTexStorage2D(GL_TEXTURE_2D, 1, m_InternalFormat, m_Width, m_Height);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 void FLB::OpenGLTexture2D::bind(uint32_t slot) const
 {
   glBindTextureUnit(slot, m_RendererID);
@@ -150,4 +183,23 @@ void FLB::OpenGLTexture2D::bind(uint32_t slot) const
 void FLB::OpenGLTexture2D::setData(void *data, uint32_t size)
 {
   glTextureSubImage2D(m_RendererID, 0, 0, 0, m_Width, m_Height, m_DataFormat, GL_UNSIGNED_BYTE, data);
+}
+
+void FLB::OpenGLTexture2D::clear() const
+{
+  glClearTexImage(m_RendererID, 0, m_DataFormat, GL_UNSIGNED_BYTE, NULL);
+}
+
+void FLB::OpenGLTexture2D::readPixels(const int xOffset, const int yOffset, const uint32_t width, const uint32_t height, const uint32_t buffSize, void* data) const
+{
+  //bind(0);
+  glGetTextureSubImage(m_RendererID, 0, xOffset, yOffset, 0, width, height, 1, m_DataFormat, GL_FLOAT, buffSize, data);
+}
+
+void FLB::OpenGLTexture2D::resize(uint32_t width, uint32_t height)
+{
+  if (width == 0 || height == 0) return;
+  m_Width = width;
+  m_Height = height;
+  createWithDimensions();
 }

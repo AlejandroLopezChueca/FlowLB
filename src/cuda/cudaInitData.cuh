@@ -35,10 +35,11 @@ namespace FLB
   extern __constant__ uint8_t CT_GAS_INTERFACE; // Convert gas to interface
   extern __constant__ uint8_t CT_WALL; 
   extern __constant__ uint8_t CT_MWALL; // Moving wall
-  extern __constant__ uint8_t CT_OPEN;  // Input or output
+  extern __constant__ uint8_t CT_INLET;  // Input
+  extern __constant__ uint8_t CT_OUTLET;  // Output
 
   // Constant variables
-  extern __constant__ float d_g; //Value of the gravity acceleration in lattice units
+  //extern __constant__ float d_g; //Value of the gravity acceleration in lattice units
   extern __constant__ float d_invTau; // inverse of the relaxation time
 
   // Size of the domain, number of points in each direction and the total number
@@ -55,8 +56,11 @@ namespace FLB
   
   // Use of grvity in the simulation
   extern __constant__ bool d_useGravity;
+  
+  // Use subgrid model for turbulence in the simulation
+  extern __constant__ bool d_useSubgridModel;
 
-  // Simulate surface tenion or not
+  // Simulate surface tension or not
   extern __constant__ bool d_surfaceTension;
 
   // Force terms
@@ -75,13 +79,13 @@ namespace FLB
     * @param[in]  h_nu  kinematic viscosity in lattice units
     */
   template<typename PRECISION>
-  void h_initConstantDataCuda2D(FLB::OptionsCalculation& optionsCalc, PRECISION* h_weights, unsigned int h_Nx, unsigned int h_Ny, unsigned int h_N, uint8_t h_collisionOperator, float h_g, float h_nu);
+  void h_initConstantDataCuda2D(FLB::OptionsCalculation& optionsCalc, PRECISION* h_weights, unsigned int h_Nx, unsigned int h_Ny, unsigned int h_N, FLB::Units& unitsConverter);
  
   /** Initialization of all the non constant data needed for the analysis 2D or 3D in the GPU.
      *
      */  
   template<typename PRECISION>
-  void h_initDataCuda2D(FLB::OptionsCalculation& optionsCalc, size_t numPointsMesh, unsigned int numDimensions, unsigned int numVelocities, PRECISION** d_f, PRECISION* h_f, PRECISION** d_u, PRECISION* h_u, uint8_t** d_flags, uint8_t* h_flags, PRECISION** d_mass, PRECISION* h_mass, PRECISION** d_rho, PRECISION* h_rho)
+  void h_initDataCuda2D(FLB::OptionsCalculation& optionsCalc, size_t numPointsMesh, unsigned int numDimensions, unsigned int numVelocities, PRECISION** d_f, PRECISION* h_f, PRECISION** d_u, PRECISION* h_u, uint8_t** d_flags, uint8_t* h_flags, PRECISION** d_mass, PRECISION* h_mass, PRECISION** d_rho, PRECISION* h_rho, PRECISION** d_excessMass, PRECISION* h_excessMass, PRECISION** d_phi, PRECISION* h_phi)
   {
     size_t fieldSize = numVelocities * numPointsMesh * sizeof(PRECISION);
     checkCudaErrors(cudaMalloc((void **)d_f, fieldSize));
@@ -108,6 +112,13 @@ namespace FLB
       fieldSize = numPointsMesh * sizeof(PRECISION);
       checkCudaErrors(cudaMalloc((void **)d_mass, fieldSize));
       checkCudaErrors(cudaMemcpy(*d_mass, h_mass, fieldSize, cudaMemcpyHostToDevice)); 
+      
+      checkCudaErrors(cudaMalloc((void **)d_excessMass, fieldSize));
+      checkCudaErrors(cudaMemcpy(*d_mass, h_excessMass, fieldSize, cudaMemcpyHostToDevice)); 
+      
+      checkCudaErrors(cudaMalloc((void **)d_phi, fieldSize));
+      checkCudaErrors(cudaMemcpy(*d_mass, h_phi, fieldSize, cudaMemcpyHostToDevice)); 
+      
     }
   }
 

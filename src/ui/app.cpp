@@ -187,6 +187,7 @@ void FLB::App::runCalculation(Fl_Widget* widget, void* instance)
 {
   if (!s_CalculationEnded) return;
   s_CalculationEnded = false;
+  s_RunningGraphics = true; // reset value
   App* instanceApp = static_cast<App*>(instance);
   instanceApp -> m_Mesh = new FLB::Mesh();
   instanceApp -> calculate();
@@ -224,12 +225,12 @@ void FLB::App::createDomain()
 
   // Read some calculation options
   FLB::OptionsCalculation optionsCalc; 
-  FLB::CalculationReader calcReader;
-  std::vector<std::string> optionsToSearch = {"LEFT_BOUNDARY", "RIGHT_BOUNDARY", "UP_BOUNDARY", "DOWN_BOUNDARY"};
-  if (!calcReader.readSomeOptionsCalculation(optionsCalculationPath, optionsCalc, m_Terminal.get(), optionsToSearch)) return;
+  FLB::CalculationReader calcReader(m_DirFiles -> value());
+  std::vector<std::string> optionsToSearch = {"TYPE_PROBLEM", "LEFT_BOUNDARY", "RIGHT_BOUNDARY", "UP_BOUNDARY", "DOWN_BOUNDARY"};
+  if (!calcReader.readSomeOptionsCalculation(optionsCalculationPath, optionsCalc, m_Terminal.get(), m_Mesh, optionsToSearch)) return;
  
   std::vector<float> voidVector; // It is not used
-  FLB::initData<float, FLB::voidInitFields<float>>(9, m_Mesh, voidVector, voidVector, voidVector, voidVector, &optionsCalc);
+  FLB::initData<float, FLB::voidInitFields<float>, FLB::voidInitFreeSurfaceFields<float>>(9, m_Mesh, voidVector, voidVector, voidVector, voidVector, voidVector, voidVector, voidVector, &optionsCalc);
   // save mesh to disk
   std::filesystem::path directorySave = std::filesystem::path(m_DirFiles -> value());
   FLB::VTIWriter writer{directorySave, true};
@@ -262,8 +263,8 @@ void FLB::App::calculate()
 
   //Reading the calculation's Options
   FLB::OptionsCalculation optionsCalc; 
-  FLB::CalculationReader calcReader;
-  if (!calcReader.readOptionsCalculation(optionsCalculationPath, optionsCalc, m_Terminal.get())) return;
+  FLB::CalculationReader calcReader(m_DirFiles -> value());
+  if (!calcReader.readOptionsCalculation(optionsCalculationPath, optionsCalc, m_Terminal.get(), m_Mesh)) return;
 
   unsigned int numDimensions;
   unsigned int numVelocities;
@@ -281,7 +282,6 @@ void FLB::App::calculate()
   else prtRenderlayer = nullptr;
   
   std::filesystem::path directorySave = std::filesystem::path(m_DirFiles -> value());
-
  
   if (optionsCalc.precision == 32)
   {
@@ -303,7 +303,7 @@ void FLB::App::calculate()
 
     double h_weights[9] = {4.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/36.0, 1.0/36.0, 1.0/36.0, 1.0/36.0};
 
-  if (optionsCalc.precision == 32)
+  if (optionsCalc.typeAnalysis == 0) // 2D
   {
 
   }

@@ -1,8 +1,11 @@
 #include "cudaUtils.cuh"
 #include "cudaInitData.cuh"
+
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <cuda_gl_interop.h>
 //#include "cudaUtils.h"
 
 void FLB::CudaUtils::printInfoDevice(Fl_Simple_Terminal* terminal)
@@ -48,6 +51,14 @@ void FLB::CudaUtils::printInfoDevice(Fl_Simple_Terminal* terminal)
 
   uint32_t maxThreadsPerBlock = getMaxThreadsPerBlock();
   terminal -> printf("[GPU INFO] The maximum number of threads per block is %d\n", maxThreadsPerBlock);
+}
+
+std::array<float, 2> FLB::CudaUtils::getUsedFreeMemory(Fl_Simple_Terminal* terminal)
+{
+  size_t freeBytes, totalBytes;
+  checkCudaErrors(cudaMemGetInfo(&freeBytes, &totalBytes));
+  size_t usedBytes = totalBytes - freeBytes;
+  return {usedBytes / 1024.0f / 1024.0f, freeBytes / 1024.0f / 1024.0f};
 }
 
 uint32_t FLB::CudaUtils::getMaxThreadsPerBlock()
@@ -101,9 +112,15 @@ __global__ void FLB::CudaUtils::save2DDataToOpenGL(PRECISION* v, cudaSurfaceObje
   const unsigned int idx = x + y * FLB::d_Nx;
   
   if (x >= FLB::d_Nx || y >= FLB::d_Ny) return;
-  float2 data = make_float2(v[idx], v[idx + FLB::d_N]);
-  //printf("OPENGL vx = %6.4f  y = %6.4f\n", v[idx], v[idx + d_N]);
+  // In cuda the y axis is downwards, so it is necessary to change the sign);
+  float2 data = make_float2(v[idx], -v[idx + FLB::d_N]);
   surf2Dwrite(data, d_SurfaceTexture, x * sizeof(float2), y);
+}
+
+void FLB::CudaUtils::mapTexture2DToOpenGL(struct cudaGraphicsResource** cudaResource, const FLB::Texture2D* texture2D, unsigned int flags)
+{
+  checkCudaErrors(cudaGraphicsGLRegisterImage(cudaResource, (GLuint)texture2D -> getID(), GL_TEXTURE_2D, flags));
+
 }
 
 template __global__ void FLB::CudaUtils::save2DDataToOpenGL<float>(float *v, cudaSurfaceObject_t d_SurfaceTexture);

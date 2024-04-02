@@ -6,6 +6,7 @@
 #include "ui/uiUtils.h"
 #include "graphics/colorMaps.h"
 #include "graphics/renderer.h"
+#include "cuda/cudaUtils.cuh"
 
 #include <imgui.h>
 #include <cstdint>
@@ -94,14 +95,48 @@ void FLB::HierarchyPanel::drawEntityNode(FLB::Entity& entity)
 void FLB::HierarchyPanel::drawScalarVectorialFieldNode()
 {
   static const std::string tag = "Scalar/Vectorial Field";
+  bool& draw = m_Scene -> getDrawScalarVectorialField();
+  ImGui::SetNextItemAllowOverlap();
+  ImGui::PushID(tag.c_str());
+  ImGui::Checkbox("##", &draw);
+  ImGui::PopID();
+  ImGui::SameLine();
+
   ImGuiDockNodeFlags flags = (m_ScalarVectorialFieldSelected ? ImGuiTreeNodeFlags_Selected : 0) | ImGuiTreeNodeFlags_Bullet | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen;
   ImGui::TreeNodeEx(tag.c_str(), flags);
 
-  if (ImGui::IsItemClicked()) m_ScalarVectorialFieldSelected = true;
+  if (ImGui::IsItemClicked()) 
+  {
+    m_ScalarVectorialFieldSelected = true;
+  }
 }
 
 void FLB::HierarchyPanel::drawComponents()
 {
+  FLB::UiUtils::drawComponent<FLB::IsoSurfaceComponent>("Isosurface Definition", m_SelectedEntity, m_Scene, [](FLB::Entity& entity, auto& component, auto* scene)
+  {
+    int& type = component.type;
+    FLB::UiUtils::drawComboBox(component.availableIsosurface, type, "Field");
+    ImGui::DragFloat("IsoValue", &component.isoValue, 0.01f); 
+    ImGui::ColorEdit4("Color", glm::value_ptr(component.color));
+    ImGui::SeparatorText("Texture");
+    const ImU32 minVal = 50;
+    ImGui::DragScalar("Width (pix)", ImGuiDataType_U32, &component.newTextureWidth, 10.0f, &minVal);
+    ImGui::DragScalar("Height (pix)", ImGuiDataType_U32, &component.newTextureHeight, 10.0f, &minVal);
+    ImVec2 buttonSize = {110, 30};
+    if (ImGui::Button("Resize Texture", buttonSize)) 
+    {
+      component.textureWidth = component.newTextureWidth; component.textureHeight = component.newTextureHeight;
+      component.mesh -> resize(component.textureWidth, component.textureHeight);
+      component.texture = component.mesh -> getTexture();
+      if (scene -> m_CalculationAPI == FLB::CalculationAPI::CUDA) 
+      {
+	unsigned int flags = cudaGraphicsRegisterFlagsWriteDiscard | cudaGraphicsRegisterFlagsSurfaceLoadStore;
+	FLB::CudaUtils::mapTexture2DToOpenGL(&component.cudaResTextureIsoSurface, component.texture, flags);
+      }
+    }
+  });
+
   FLB::UiUtils::drawComponent<FLB::Arrow2DComponent>("Glyph Definition", m_SelectedEntity, [](auto& component)
   {
     glm::ivec2 prevNumberPoints = component.numberPoints;
@@ -115,6 +150,7 @@ void FLB::HierarchyPanel::drawComponents()
     ImGui::DragFloatRange2("##", &component.maxMinValues.y, &component.maxMinValues.x, 0.05f, 0.0f, 0.0f, "Min: %.2f", "Max: %.2f");
     FLB::UiUtils::drawImageComboBox<4>(s_ColorMaps, FLB::ColorMaps::nameColorMaps, component.currentIdxColorMap);
   });
+
   
   FLB::UiUtils::drawComponent<FLB::RectangleComponent>("Rectangle Definition", m_SelectedEntity, m_Scene, [](FLB::Entity& entity, auto& component, auto* scene)
   {

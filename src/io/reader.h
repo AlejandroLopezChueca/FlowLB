@@ -87,6 +87,10 @@ namespace FLB
     uint32_t x = 0, y = 0, z = 0;
   };
 
+  struct velocity
+  {
+    double x = 0.0, y = 0.0, z = 0.0;
+  };
 
   /** Options to use in the calculations.
    *
@@ -101,11 +105,12 @@ namespace FLB
     uint8_t collisionOperator = 0; // 0 = SRT, 1 = MRT
     bool surfaceTension = false;
     int precision = 32;
-    double LBVelocity = 0.1; // the lattice velocity must be less than cs^2 (sound velocity in lattice units) that it is tipically 1/3 (depend on the lattice scheme)
+    velocity LBVelocity = {0.1, 0.1, 0.1}; // the lattice velocity must be less than cs^2 (sound velocity in lattice units) that it is tipically 1/3 (depend on the lattice scheme)
     bool useGravity = false;
-    float gravity = 9.80665;
+    bool useSubgridModel = false;
+    float gravity = 9.80665f;
     double flow = 0.0;
-    double velocity = 0.0;
+    velocity SIVelocity;
     double kinematicViscosity = 0.0;
     double density = 0.0;
     float timeSimulation = 0.0f;
@@ -123,20 +128,20 @@ namespace FLB
   class CalculationReader: public Reader
   {
     public:
-      //CalculationReader();
+      CalculationReader(std::filesystem::path directoryPath);
       //~CalculationReader();
       
       /**
        *  @brief Main function to start to read all the options in the file of the calculation's options
        *
        */
-      bool readOptionsCalculation(std::string& filePath, FLB::OptionsCalculation& optionsCalc, Fl_Simple_Terminal* terminal);
+      bool readOptionsCalculation(std::string& filePath, FLB::OptionsCalculation& optionsCalc, Fl_Simple_Terminal* terminal, FLB::Mesh* mesh);
 
       /**
        * @brief Read some options in the file of the calculation's options
        *
        */
-      bool readSomeOptionsCalculation(std::string& filePath, FLB::OptionsCalculation& optionsCalc, Fl_Simple_Terminal* terminal, std::vector<std::string>& optionsToSearch);
+      bool readSomeOptionsCalculation(std::string& filePath, FLB::OptionsCalculation& optionsCalc, Fl_Simple_Terminal* terminal, FLB::Mesh* mesh, std::vector<std::string>& optionsToSearch);
      
     private:
       /**
@@ -149,15 +154,19 @@ namespace FLB
        *  @brief Check if a option in the file exist and extract it's value. It also throws an error if the option doesn't exsit 
        *
        */
-      bool getOptionCalculation(std::string& option, std::string& value, FLB::OptionsCalculation& optionsCalc, unsigned int posLine, Fl_Simple_Terminal* terminal);
+      bool getOptionCalculation(std::string& option, std::string& value, FLB::OptionsCalculation& optionsCalc, const unsigned int posLine, Fl_Simple_Terminal* terminal);
+
+      bool getInitialConditions(const std::string& option, const std::string& value, const unsigned int posLine, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal);
 
       /**
-       * @brief Modify some of the data when the reading of the file has finished because it is necesary to know all the data.
+       * @brief Modify some of the data when the reading of the file has finished because it is necesary to know all the data to do this.
        *
        */
-      void modifyCalculationData(FLB::Mesh* mesh);
+      bool modifyCalculationData(FLB::Mesh* mesh, Fl_Simple_Terminal* terminal, FLB::OptionsCalculation& optionsCalc);
 
       void getTypeNode(FLB::TypesNodes& typeNode, std::string& value);
+      
+      std::filesystem::path m_DirectoryPath;
   };
 
   /**
@@ -189,19 +198,19 @@ namespace FLB
        * @brief Get all the elements that make up the mesh
        *
        */
-      bool getMeshElements(std::string& element, std::string& coordinates, unsigned int posLine, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal);
+      bool getMeshElements(std::string& element, std::string& coordinates, const unsigned int posLine, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal);
       
       /**
        *  @brief Get all the data about the cross drainage works 
        *
        */
-      bool getCDWData(const std::string& option, const std::string& value, unsigned int posLine, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal);
+      bool getCDWData(const std::string& option, const std::string& value, const unsigned int posLine, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal);
 
       /**
        *  @brief Get all the data about the obstacles 
        *
        */
-      bool getObstaclesData(const std::string& option, const std::string& value, unsigned int posLine, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal);
+      bool getObstaclesData(const std::string& option, const std::string& value, const unsigned int posLine, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal);
       
       /**
        * @brief Modify some of the data when the reading of the file has finished because it is necesary to know all the data.

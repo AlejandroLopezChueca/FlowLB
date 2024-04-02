@@ -11,9 +11,6 @@
 #include <ImGuizmo.h>
 
 template<typename T>
-bool FLB::OpenGLWindow<T>::s_GLFWInitialized = false;
-
-template<typename T>
 T* FLB::OpenGLWindow<T>::s_cameraController = nullptr;
 
 template<typename T>
@@ -23,10 +20,11 @@ template<typename T>
 FLB::OpenGLWindow<T>::OpenGLWindow(Fl_Simple_Terminal* terminal, T* cameraController, bool enableVSync)
 {
   s_cameraController = cameraController;
-  if (!s_GLFWInitialized)
+  if (!glfwInit())
   {
-    glfwInit();
-    s_GLFWInitialized = true;
+    terminal -> printf("Failed to initialize GLFW\n");
+    glfwTerminate();
+    return;
   }
   // Min version 4.5
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
@@ -35,7 +33,7 @@ FLB::OpenGLWindow<T>::OpenGLWindow(Fl_Simple_Terminal* terminal, T* cameraContro
   if (!m_renderWindow)
   {
     terminal -> printf("Window or context creation failed for OpenGL\n");
-    throw std::runtime_error("Error in the creation of the window for OpenGL");
+    //throw std::runtime_error("Error in the creation of the window for OpenGL");
   }
   glfwMakeContextCurrent(m_renderWindow);
   //OpenGL function pointers
@@ -43,11 +41,13 @@ FLB::OpenGLWindow<T>::OpenGLWindow(Fl_Simple_Terminal* terminal, T* cameraContro
   {
     terminal -> printf("Failed to initialize GLAD\n");
     if (GLVersion.major < 4 || (GLVersion.major == 4 && GLVersion.minor < 5)) terminal -> printf("It is required al least OpenGL version 4.5\n");
-    throw std::runtime_error("Failed to initialize GLAD");
+    glfwDestroyWindow(m_renderWindow);
+    glfwTerminate();
+    return;
   }
   glViewport(0, 0, m_Width, m_Height);
-  //glfwSetWindowUserPointer(renderWindow, &windowData);
   setVSync(enableVSync); 
+  //glEnable(GL_DEPTH_TEST)
 
   // Set GLFW callbacks
   glfwSetFramebufferSizeCallback(m_renderWindow, [](GLFWwindow* window, int width, int height) {glViewport(0, 0, width, height);});
@@ -56,11 +56,6 @@ FLB::OpenGLWindow<T>::OpenGLWindow(Fl_Simple_Terminal* terminal, T* cameraContro
       {
 	FLB::App::closeGraphics();
       });
-
-  /*glfwSetMouseButtonCallback(m_renderWindow, [](GLFWwindow* window, int button, int action, int mods)
-      {
-	if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS) std::cout<<"BUTTON"<<std::endl;
-      });*/
 
   glfwSetKeyCallback(m_renderWindow, FLB::OpenGLWindow<T>::setKeyCallback);
   /*glfwSetKeyCallback(m_renderWindow, [](GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -76,6 +71,7 @@ FLB::OpenGLWindow<T>::OpenGLWindow(Fl_Simple_Terminal* terminal, T* cameraContro
   glEnable(GL_DEBUG_OUTPUT);
   glDebugMessageCallback(debugMessageCallback, 0);
 #endif 
+  m_IsInitialized = true;
 }
 
 template<typename T>
@@ -83,6 +79,7 @@ FLB::OpenGLWindow<T>::~OpenGLWindow()
 {
   glfwDestroyWindow(m_renderWindow);
   glfwTerminate();
+  m_IsInitialized = false;
 }
 
 template<typename T>
@@ -97,7 +94,7 @@ void FLB::OpenGLWindow<T>::update()
 {
   // Pool for and process events
   glfwPollEvents();
-  // swap front and bahk buffers
+  // swap front and back buffers
   glfwSwapBuffers(m_renderWindow);
 }
 
@@ -112,7 +109,6 @@ void FLB::OpenGLWindow<T>::setKeyCallback(GLFWwindow* window, int key, int scanc
   else if (key == GLFW_KEY_R && GLFW_PRESS && !ImGuizmo::IsUsing()) *s_GizmoOperation =ImGuizmo::OPERATION::SCALE;
 }
 
-
 template<typename T>
 void FLB::OpenGLWindow<T>::setScrollCallback(GLFWwindow* window, double xOffset, double yOffset)
 {
@@ -123,6 +119,20 @@ template<typename T>
 void FLB::OpenGLWindow<T>::debugMessageCallback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* message, const void* userParam)
 {
   if (type == GL_DEBUG_TYPE_ERROR) fprintf(stderr, "GL CALLBACK: %s type = 0x%x, severity = 0x%x, message = %s\n", (type == GL_DEBUG_TYPE_ERROR ? "** GL_ERROR **" : ""), type, severity, message);
+}
+
+template<typename T>
+bool FLB::OpenGLWindow<T>::getMousePos(glm::dvec2& mousePos) const
+{
+  bool state = glfwGetMouseButton(m_renderWindow, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+  if (state) glfwGetCursorPos(m_renderWindow, &mousePos.x, &mousePos.y);
+  return state;
+}
+
+template <typename T>
+bool FLB::OpenGLWindow<T>::isLeftButtonMouseClicked() const
+{
+  return glfwGetMouseButton(m_renderWindow, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
 }
 
 template class FLB::OpenGLWindow<FLB::OrthographicCameraController>; 

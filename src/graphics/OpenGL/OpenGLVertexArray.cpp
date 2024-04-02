@@ -11,12 +11,13 @@ namespace FLB
   {
     switch (type)
     {
-      case ShaderDataType::Float: return GL_FLOAT;
-      case ShaderDataType::Float2: return GL_FLOAT;
+      case ShaderDataType::Uint8:     return GL_UNSIGNED_BYTE;
+      case ShaderDataType::Float:     return GL_FLOAT;
+      case ShaderDataType::Float2:    return GL_FLOAT;
       case ShaderDataType::SOAFloat2: return GL_FLOAT;
-      case ShaderDataType::Float3: return GL_FLOAT;
-      case ShaderDataType::Float4: return GL_FLOAT;
-      case ShaderDataType::Mat4: return GL_FLOAT;
+      case ShaderDataType::Float3:    return GL_FLOAT;
+      case ShaderDataType::Float4:    return GL_FLOAT;
+      case ShaderDataType::Mat4:      return GL_FLOAT;
       default: throw std::invalid_argument("VertexArray: Unknown ShaderDataType\n");
     }
     return 0;
@@ -57,6 +58,7 @@ void FLB::OpenGLVertexArray::addVertexBuffer(VertexBuffer* const vertexBuffer)
   {
     switch (element.type)
     {
+      case ShaderDataType::Uint8:
       case ShaderDataType::Float:
       case ShaderDataType::Float2:
       case ShaderDataType::Float3:

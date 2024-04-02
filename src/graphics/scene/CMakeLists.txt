@@ -1,3 +1,4 @@
+
 target_sources(scene
   PUBLIC
   ${CMAKE_CURRENT_LIST_DIR}/scene.cpp
@@ -19,5 +20,6 @@ target_sources(scene
       ${CMAKE_SOURCE_DIR}/dependencies/entt/include
       ${CMAKE_SOURCE_DIR}/dependencies/msdf-atlas-gen/msdfgen
       ${CMAKE_SOURCE_DIR}/dependencies/msdf-atlas-gen/msdf-atlas-gen
-      ${CMAKE_SOURCE_DIR}/src)
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 

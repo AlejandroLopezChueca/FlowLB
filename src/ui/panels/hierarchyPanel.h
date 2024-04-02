@@ -27,6 +27,8 @@ namespace FLB
 
       static std::array<std::unique_ptr<FLB::Texture2D>, 4>& getColorMaps() {return s_ColorMaps;}
 
+      const int& getCurrentIdxVectorRepresentation() const {return m_CurrentIdxVectorRepresentation;}
+
       private:
 	void drawEntityNode(FLB::Entity& entity);
 	void drawScalarVectorialFieldNode();

@@ -21,22 +21,29 @@ __constant__ unsigned int FLB::d_N;
 __constant__ uint8_t FLB::d_collisionOperator;
 
 // Types of nodes
-__constant__ uint8_t FLB::CT_FLUID = 0;
-__constant__ uint8_t FLB::CT_GAS = 1;
-__constant__ uint8_t FLB::CT_INTERFACE = 2;
-__constant__ uint8_t FLB::CT_INTERFACE_FLUID = 3;
-__constant__ uint8_t FLB::CT_INTERFACE_GAS = 4;
-__constant__ uint8_t FLB::CT_GAS_INTERFACE = 5;
-__constant__ uint8_t FLB::CT_WALL = 6;  //Static wall
-__constant__ uint8_t FLB::CT_MWALL = 7; // Moving wall
-__constant__ uint8_t FLB::CT_OPEN = 8; // Input or Output
+__constant__ uint8_t FLB::CT_FLUID = 1 << 0;        // 0000 0001
+__constant__ uint8_t FLB::CT_GAS = 1 << 1;          // 0000 0010
+__constant__ uint8_t FLB::CT_INTERFACE = 1 << 2;    // 0000 0100
+__constant__ uint8_t FLB::CT_WALL = 1 << 3;         // 0000 1000  Static wall
+__constant__ uint8_t FLB::CT_MWALL = 1 << 4;        // 0001 0000 Moving wall
+__constant__ uint8_t FLB::CT_INLET = 1 << 5;         // 0010  0000 Input or Output
+__constant__ uint8_t FLB::CT_OUTLET = 1 << 6;         // 0100  0000 Input or Output
+__constant__ uint8_t FLB::CT_INTERFACE_FLUID = 0x5; // 0000 0101
+__constant__ uint8_t FLB::CT_INTERFACE_GAS = 0x6;   // 0000 0110
+//__constant__ uint8_t FLB::CT_FLUID_INLET =;   // 0000 0110
+//__constant__ uint8_t FLB::CT_FLUID_OUTLET =;   // 0000 0110
+//__constant__ uint8_t FLB::CT_GAS_OUTLET =;   // 0000 0110
+__constant__ uint8_t FLB::CT_GAS_INTERFACE = 0xff;  // 1111 1111
 
 // constant variables
-__constant__ float FLB::d_g;
+//__constant__ float FLB::d_g;
 __constant__ float FLB::d_invTau;
 
 // Use of grvity in the simulation
 __constant__ bool FLB::d_useGravity;
+
+// Use subgrid model for turbulence in the simulation
+__constant__ bool FLB::d_useSubgridModel;
 
 // Simulate surface tneion or not
 __constant__ bool FLB::d_surfaceTension;
@@ -45,8 +52,14 @@ __constant__ bool FLB::d_surfaceTension;
 __constant__ float FLB::d_Fx, FLB::d_Fy, FLB::d_Fz;
 
 template<typename PRECISION>
-void FLB::h_initConstantDataCuda2D(FLB::OptionsCalculation& optionsCalc, PRECISION* h_weights, unsigned int h_Nx, unsigned int h_Ny, unsigned int h_N, uint8_t h_collisionOperator, float h_g, float h_nu)
+void FLB::h_initConstantDataCuda2D(FLB::OptionsCalculation& optionsCalc, PRECISION* h_weights, unsigned int h_Nx, unsigned int h_Ny, unsigned int h_N, FLB::Units& unitsConverter)
 {
+  uint8_t h_collisionOperator = optionsCalc.collisionOperator;
+  float h_g = unitsConverter.gToLatticeUnits(optionsCalc.gravity);
+  float h_nu = unitsConverter.nuToLatticeUnits(optionsCalc.kinematicViscosity);
+  float h_Fy = optionsCalc.useGravity ? unitsConverter.calculateVolumeForceLatticeUnits(optionsCalc.gravity, optionsCalc.density) : 0.0f;
+  float h_Fx = 0.0f;
+
   // Lattice velocities
   int h_cx[9] = {0, 1, -1, 0,  0, 1, -1, -1,  1};
   int h_cy[9] = {0, 0,  0, 1, -1, 1, -1,  1, -1};
@@ -57,7 +70,7 @@ void FLB::h_initConstantDataCuda2D(FLB::OptionsCalculation& optionsCalc, PRECISI
 
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_cx<9>, &h_cx, 9*sizeof(int), 0, cudaMemcpyHostToDevice));
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_cy<9>, &h_cy, 9*sizeof(int), 0, cudaMemcpyHostToDevice)); 
-  checkCudaErrors(cudaMemcpyToSymbol(FLB::d_g, &h_g, sizeof(float), 0, cudaMemcpyHostToDevice));
+  //checkCudaErrors(cudaMemcpyToSymbol(FLB::d_g, &h_g, sizeof(float), 0, cudaMemcpyHostToDevice));
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_invTau, &h_invTau, sizeof(float), 0, cudaMemcpyHostToDevice));
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_Nx, &h_Nx, sizeof(unsigned int), 0, cudaMemcpyHostToDevice));
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_Ny, &h_Ny, sizeof(unsigned int), 0, cudaMemcpyHostToDevice));
@@ -72,13 +85,17 @@ void FLB::h_initConstantDataCuda2D(FLB::OptionsCalculation& optionsCalc, PRECISI
   {
 checkCudaErrors(cudaMemcpyToSymbol(FLB::d_weights<double, 9>, &h_weights, 9*sizeof(double), 0, cudaMemcpyHostToDevice));
   }
+  
+  checkCudaErrors(cudaMemcpyToSymbol(FLB::d_Fx, &h_Fx, sizeof(float), 0, cudaMemcpyHostToDevice));
+  checkCudaErrors(cudaMemcpyToSymbol(FLB::d_Fy, &h_Fy, sizeof(float), 0, cudaMemcpyHostToDevice));
 
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_useGravity, &optionsCalc.useGravity, sizeof(bool), 0, cudaMemcpyHostToDevice));
+  checkCudaErrors(cudaMemcpyToSymbol(FLB::d_useSubgridModel, &optionsCalc.useSubgridModel, sizeof(bool), 0, cudaMemcpyHostToDevice));
 }
 
 // Explicit instantation of the functions because the templates functions are instantiated in a diferent compilation unit
 
-template void FLB::h_initConstantDataCuda2D<float>(FLB::OptionsCalculation& OptionsCalc, float* h_weights, unsigned int h_Nx, unsigned int h_Ny, unsigned int h_N, uint8_t h_collisionOperator, float h_g, float h_nu);
+template void FLB::h_initConstantDataCuda2D<float>(FLB::OptionsCalculation& OptionsCalc, float* h_weights, unsigned int h_Nx, unsigned int h_Ny, unsigned int h_N, FLB::Units& unitsConverter);
 
-template void FLB::h_initConstantDataCuda2D<double>(FLB::OptionsCalculation& OptionsCalc, double* h_weights, unsigned int h_Nx, unsigned int h_Ny, unsigned int h_N, uint8_t h_collisionOperator, float h_g, float h_nu);
+template void FLB::h_initConstantDataCuda2D<double>(FLB::OptionsCalculation& OptionsCalc, double* h_weights, unsigned int h_Nx, unsigned int h_Ny, unsigned int h_N, FLB::Units& unitsConverter);
 

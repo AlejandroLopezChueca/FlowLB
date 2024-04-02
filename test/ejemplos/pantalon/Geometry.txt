@@ -1,0 +1,76 @@
+
+# If a line start with # (first character of the line), then this line will not be read (only used for comments)
+
+##### GEOMETRIC DATA
+# The domain can be 2D or 3D
+TYPE_DOMAIN = 2D
+
+# Poinst used to create the axis of the domain, the order is x, y, z
+# The numeration of the firt element must be 1 and it has to be in ascending order with and increment of +1
+# If it is a 2D problem the coordinate z must be 0
+
+POINT(1) = (-4.8, 0, 0)
+POINT(2) = (2.8, 0, 0)
+#POINT(3) = (1, -0.2, 0)
+
+# Size (meters) between two consecutive points fo the mesh. The size is equal in all directions 
+SIZE = 0.005
+
+##### DIMENSIONS OF THE CROSS DRAINAGE WORK (CDW)
+
+# Points of geometric data that they are the initial and the end points of the shapes
+INITIAL_POSITION_SHAPES = 1
+END_POSITION_SHAPES = 2
+# Shape of the CDW . It can be CIRCLE or RECTANGLE
+CDW(1).type = CIRCLE
+
+# Height and width in meters. Only used when the shape is RECTANGLE and the variable width is only used when the case is 3D
+CDW(1).height = 1
+CDW(1).width = 1 
+
+# Radius in meters. Only used when the shape is CIRCLE
+CDW(1).radius = 6.65
+
+# Separation between CDW in meters. It is the distance between consecutive centers (Only used in 3D)
+SEPARATION = 2
+
+##### OBSTACLES
+
+# CSV file. The seperator must be ; and the order of the coordinates in the column is x;y;z.
+# there may be whitespaces, they are not taken into account, e.g. x ; y ; z
+# To know if the nodes of the domain are inside the csv obstacle, it is necessary that the contiguos points form edges of the obstacle
+# Types -> CSV_2D, WALL, CIRCLE
+OBSTACLE(1).type = CSV_2D # csv of a 2D obstacle
+OBSTACLE(1).name = part1 # it is not necessary the extension .csv 
+OBSTACLE(1).position = (2.2, 7.925, 0) # x, y, z (meters) of geometric center
+OBSTACLE(1).rotation = (0, 0, 0) # Around its geometric center in Sexadecimal degrees and anticlockwise
+
+OBSTACLE(2).type = CSV_2D # csv of a 2D obstacle
+OBSTACLE(2).name = part2 # it is not necessary the extension .csv 
+OBSTACLE(2).position = (0.52, 11.78, 0) # x, y, z (meters) of geometric center
+OBSTACLE(2).rotation = (0, 0, 0) # Around its geometric center in Sexadecimal degrees and anticlockwise
+
+OBSTACLE(3).type = CSV_2D # csv of a 2D obstacle
+OBSTACLE(3).name = part3 # it is not necessary the extension .csv 
+OBSTACLE(3).position = (2.55, 10.305, 0) # x, y, z (meters) of geometric center
+OBSTACLE(3).rotation = (0, 0, 0) # Around its geometric center in Sexadecimal degrees and anticlockwise
+
+#OBSTACLE(1).type = WALL
+#OBSTACLE(1).position = (1, 18, 0) # x, y, z (meters) of geometric center
+#OBSTACLE(1).height = 20 # in direction y
+#OBSTACLE(1).xWidth = 20
+#OBSTACLE(1).zWidth = 0.2 # Only used in 3D
+#OBSTACLE(1).rotation = (0, 0, 0) # Around its geometric center in Sexadecimal degrees and anticlockwise
+
+#OBSTACLE(2).type = CIRCLE
+#OBSTACLE(2).position = (0.5, 0.5, 0) # x, y, z (meters) of geometric center
+#OBSTACLE(2).radius = 0.2 
+#OBSTACLE(2).thickness = 0.2 # Only used in 3D
+
+
+
+
+
+
+
+

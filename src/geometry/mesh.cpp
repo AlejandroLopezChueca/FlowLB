@@ -5,7 +5,7 @@
 
 
 FLB::Mesh::Mesh()
-  : m_xMax(0), m_xMin(0), m_yMax(0), m_yMin(0), m_zMax(0), m_zMin(0), m_Is3D(false), m_SeparationCDW(0.0f), m_IsFreeSurface(false) {};
+  : m_xMax(0), m_xMin(0), m_yMax(0), m_yMin(0), m_zMax(0), m_zMin(0), m_Is3D(false), m_SeparationCDW(0.0f) {};
 
 
 void FLB::Mesh::init()
@@ -62,6 +62,7 @@ void FLB::Mesh::reserveMemory()
 {
   m_DomainFlags.reserve(m_NumPointsMesh);
   m_CoordinatesPoints.reserve(3 * m_NumPointsMesh);
+  m_DomainFlags.reserve(m_NumPointsMesh);
 }
 
 void FLB::Mesh::clear()
@@ -76,6 +77,7 @@ void FLB::Mesh::clear()
 void FLB::Mesh::setupGraphicsOptions(FLB::API api, Fl_Simple_Terminal* terminal)
 {
   m_VertexArray = FLB::VertexArray::create(api);
+  // Dvide in 2D and 3D
   m_VertexBufferDomain = FLB::VertexBuffer::create(api, terminal, m_CoordinatesPoints.data(), 3 * m_NumPointsMesh * sizeof(float));
   FLB::BufferLayout layout = {
     {ShaderDataType::Float3, "a_PointsPosition"}

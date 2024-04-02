@@ -37,5 +37,6 @@ target_sources(graphics
       ${CMAKE_SOURCE_DIR}/dependencies/glm
       ${CMAKE_SOURCE_DIR}/dependencies/msdf-atlas-gen/msdfgen
       ${CMAKE_SOURCE_DIR}/dependencies/msdf-atlas-gen/msdf-atlas-gen
-      ${CMAKE_SOURCE_DIR}/src)
+      ${CMAKE_SOURCE_DIR}/src
+      ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 

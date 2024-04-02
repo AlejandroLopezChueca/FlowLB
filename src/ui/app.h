@@ -47,8 +47,6 @@ namespace FLB
       static void clearTerminal(Fl_Widget* widget, void* terminal);
       static void printInfoDevice(Fl_Widget* widget, void* terminal);
 
-
-
       void createDomain();
       void calculate();
       void postProcessing();
@@ -73,8 +71,6 @@ namespace FLB
 
 
     static App* s_Instance;
-      //std::unique_ptr<FLB::Window> m_RenderWindow;
-      //std::unique_ptr<FLB::OrthographicCameraController> m_OrthographicCameraController;
       
   };
 

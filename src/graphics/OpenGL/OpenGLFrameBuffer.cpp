@@ -28,7 +28,7 @@ void FLB::OpenGLFrameBuffer::create()
   {
     glDeleteFramebuffers(1, &m_RendererID);
     glDeleteTextures(1, &m_ColorAttachment);
-    glDeleteTextures(1, &m_DepthAttachment);
+    if (m_Specifications.is3D) glDeleteTextures(1, &m_DepthAttachment);
  	
     m_ColorAttachment = 0;
     m_DepthAttachment = 0;
@@ -39,7 +39,6 @@ void FLB::OpenGLFrameBuffer::create()
   glCreateTextures(GL_TEXTURE_2D, 1, &m_ColorAttachment);
   glBindTexture(GL_TEXTURE_2D, m_ColorAttachment);
 
-  //std::vector<uint8_t> da(m_Specifications.width * m_Specifications.height *4, 170);
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, m_Specifications.width, m_Specifications.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
   //glTexStorage2D(GL_TEXTURE_2D, 1,GL_RGBA8, m_Specifications.width, m_Specifications.height);
   //glBindImageTexture(1, m_ColorAttachment, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);

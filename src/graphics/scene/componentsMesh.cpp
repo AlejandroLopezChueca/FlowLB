@@ -3,6 +3,8 @@
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/fwd.hpp"
 #include "glm/gtx/quaternion.hpp"
+#include "graphics/texture.h"
+#include <array>
 #include <cstdint>
 #include <vector>
 #include <iostream>
@@ -213,4 +215,60 @@ void FLB::Arrow2DMesh::init(Fl_Simple_Terminal* terminal)
   // index buffer
   m_IndexBuffer = FLB::IndexBuffer::create(m_Api, terminal, indices.data(), indices.size());
   m_VertexArray -> setIndexBuffer(m_IndexBuffer.get());
+}
+
+//////////////////////// IsoSurfaceMesh ////////////////////////
+FLB::IsoSurfaceMesh::IsoSurfaceMesh(FLB::API api, Fl_Simple_Terminal* terminal, const FLB::Mesh* mesh, uint32_t width, uint32_t height, std::array<float, 8>& vertices) 
+{
+  init(api, terminal, mesh, width, height, vertices);
+}
+
+void FLB::IsoSurfaceMesh::resize(const unsigned int width, const unsigned int height)
+{
+  m_Texture -> resize(width, height);
+}
+
+void FLB::IsoSurfaceMesh::init(FLB::API api, Fl_Simple_Terminal* terminal, const FLB::Mesh* mesh, uint32_t width, uint32_t height, std::array<float, 8>& vertices)
+{
+  m_Texture = FLB::Texture2D::create(api, width, height, FLB::ImageFormat::R8);
+  m_VertexArray = FLB::VertexArray::create(api);
+
+  m_VertexBufferVertices = FLB::VertexBuffer::create(api, terminal, vertices.data(), vertices.size() * sizeof(float));
+ 
+  // Separate from the texture coordinates buffer because the vertices buffer is dynamic
+  FLB::BufferLayout layout;
+  if (mesh -> is3D())
+  {
+    layout = 
+    {
+      {ShaderDataType::Float3, "a_QuadPoints"},
+    };
+
+  }
+  else 
+  {
+    layout = 
+    {
+      {ShaderDataType::Float2, "a_QuadPoints"},
+    };
+  }
+  m_VertexBufferVertices -> setLayout(layout);
+  m_VertexArray -> addVertexBuffer(m_VertexBufferVertices.get());
+  
+  float textCoord[] =
+  {
+    0.0f, 0.0f,
+    1.0f, 0.0f,
+    1.0f, 1.0f,
+    0.0f, 1.0f
+  };
+  
+  m_VertexBufferTexture = FLB::VertexBuffer::create(api, terminal, textCoord, sizeof(textCoord));
+  
+  layout = 
+  {
+    {ShaderDataType::Float2, "a_QuadTextCoord"}
+  };
+  m_VertexBufferTexture -> setLayout(layout);
+  m_VertexArray -> addVertexBuffer(m_VertexBufferTexture.get());
 }
