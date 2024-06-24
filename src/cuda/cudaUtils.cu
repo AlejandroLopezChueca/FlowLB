@@ -113,7 +113,7 @@ __global__ void FLB::CudaUtils::save2DDataToOpenGL(PRECISION* v, cudaSurfaceObje
   
   if (x >= FLB::d_Nx || y >= FLB::d_Ny) return;
   // In cuda the y axis is downwards, so it is necessary to change the sign);
-  float2 data = make_float2(v[idx], -v[idx + FLB::d_N]);
+  float2 data = make_float2(v[idx], v[idx + FLB::d_N]);
   surf2Dwrite(data, d_SurfaceTexture, x * sizeof(float2), y);
 }
 

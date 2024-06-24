@@ -31,21 +31,25 @@ namespace FLB::CudaUtils
   struct copyDataElement
   {
     const unsigned int numDimensions;
+    const unsigned int sizeData;
     PRECISION* h_ptr;
     PRECISION* d_ptr;
 
-    copyDataElement<PRECISION>(const unsigned int numberDimensions, PRECISION* host_ptr, PRECISION* device_ptr) 
-      : numDimensions(numberDimensions), h_ptr(host_ptr), d_ptr(device_ptr) {}
+    copyDataElement<PRECISION>(const unsigned int numberDimensions, const unsigned int size, PRECISION* host_ptr, PRECISION* device_ptr) 
+      : numDimensions(numberDimensions), sizeData(size), h_ptr(host_ptr), d_ptr(device_ptr) {}
   };
 
   template<typename PRECISION>
-  void copyDataFromDevice(size_t numPointsMesh, const std::initializer_list<copyDataElement<PRECISION>>& listElements)
+  void copyDataFromDevice(size_t numPointsMesh, const std::initializer_list<copyDataElement<PRECISION>>& listElements, uint8_t* h_flags, uint8_t* d_flags)
   {
     for (auto& element : listElements)
     {
-      size_t fieldSize = element.numDimensions * numPointsMesh * sizeof(PRECISION);
+      size_t fieldSize = element.numDimensions * numPointsMesh * element.sizeData;
     checkCudaErrors(cudaMemcpy(static_cast<void*>(element.h_ptr), static_cast<const void*>(element.d_ptr), fieldSize, cudaMemcpyDeviceToHost));
     }
+
+    size_t fieldSize = 1 * numPointsMesh * sizeof(uint8_t);
+    checkCudaErrors(cudaMemcpy(static_cast<void*>(h_flags), static_cast<const void*>(d_flags), fieldSize, cudaMemcpyDeviceToHost));
   }
  
   void printInfoDevice(Fl_Simple_Terminal* terminal);

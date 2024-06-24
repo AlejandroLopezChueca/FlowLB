@@ -87,7 +87,7 @@ namespace FLB
     uint32_t x = 0, y = 0, z = 0;
   };
 
-  struct velocity
+  struct vector3D
   {
     double x = 0.0, y = 0.0, z = 0.0;
   };
@@ -105,12 +105,16 @@ namespace FLB
     uint8_t collisionOperator = 0; // 0 = SRT, 1 = MRT
     bool surfaceTension = false;
     int precision = 32;
-    velocity LBVelocity = {0.1, 0.1, 0.1}; // the lattice velocity must be less than cs^2 (sound velocity in lattice units) that it is tipically 1/3 (depend on the lattice scheme)
-    bool useGravity = false;
+    double referenceVelocityLB = 0.1; // the lattice velocity must be less than cs^2 (sound velocity in lattice units) that it is tipically 1/3 (depend on the lattice scheme)
+    double referenceVelocitySI = 1.0;
+    bool useVolumetricForce = false;
     bool useSubgridModel = false;
-    float gravity = 9.80665f;
+    vector3D acceleration;
+    vector3D volumetricForce;
     double flow = 0.0;
-    velocity SIVelocity;
+    double relaxationTime = 0.0;
+    vector3D SIVelocity;
+    vector3D LBVelocity;
     double kinematicViscosity = 0.0;
     double density = 0.0;
     float timeSimulation = 0.0f;

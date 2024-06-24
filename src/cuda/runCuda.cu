@@ -74,9 +74,8 @@ void FLB::h_launchCudaCalculations2D(FLB::OptionsCalculation& optionsCalc, std::
   //set units converter SI units - Lattice units
   FLB::Units unitsConverter;
   double xLengthSI = mesh -> getxMax() - mesh -> getxMin();
-  double maxSIVelocity = optionsCalc.SIVelocity.x > optionsCalc.SIVelocity.y ? optionsCalc.SIVelocity.x : optionsCalc.SIVelocity.y;
-  double maxLBVelocity = optionsCalc.LBVelocity.x > optionsCalc.LBVelocity.y ? optionsCalc.LBVelocity.x : optionsCalc.LBVelocity.y;
-  unitsConverter.setConversionParameters(xLengthSI, h_Nx - 1, maxSIVelocity, maxLBVelocity, optionsCalc.density, 1.0);
+  unitsConverter.setConversionParameters(xLengthSI, h_Nx - 1, optionsCalc.referenceVelocitySI, optionsCalc.referenceVelocityLB, optionsCalc.density, 1.0);
+  optionsCalc.LBVelocity = unitsConverter.velocitySIToVelocityLB(optionsCalc.SIVelocity);
 
   // Init data of the domain
   FLB::initData<PRECISION, FLB::initFields<PRECISION>, FLB::initFreeSurfaceFields<PRECISION>>(numVelocities, mesh, h_f, h_u, h_weights, h_rho, h_phi, h_mass, h_excessMass, &optionsCalc);
@@ -93,7 +92,7 @@ void FLB::h_launchCudaCalculations2D(FLB::OptionsCalculation& optionsCalc, std::
     }
     else if (optionsCalc.graphicsAPI == FLB::API::NONE)
     {
-      FLB::h_runCudaMonoFluidNoGraphics2D<PRECISION>(optionsCalc, mesh, terminal, unitsConverter, d_u, h_u, d_f, d_rho, h_rho, d_flags, d_mass, directorySave);
+      FLB::h_runCudaMonoFluidNoGraphics2D<PRECISION>(optionsCalc, mesh, terminal, unitsConverter, d_u, h_u, d_f, d_rho, h_rho, d_flags, h_flags, d_mass, directorySave);
     } 
   }
 
@@ -105,7 +104,7 @@ void FLB::h_launchCudaCalculations2D(FLB::OptionsCalculation& optionsCalc, std::
     }
     else if (optionsCalc.graphicsAPI == FLB::API::NONE)
     {
-      FLB::h_runCudaFreeSurfaceNoGraphics2D(optionsCalc, mesh, terminal, unitsConverter, d_u, h_u, d_f, d_rho, h_rho, d_flags, d_mass, d_excessMass, d_phi, h_phi, directorySave);
+      FLB::h_runCudaFreeSurfaceNoGraphics2D<PRECISION>(optionsCalc, mesh, terminal, unitsConverter, d_u, h_u, d_f, d_rho, h_rho, d_flags, h_flags, d_mass, d_excessMass, d_phi, h_phi, directorySave);
     }
   }
 
@@ -352,8 +351,8 @@ void FLB::h_runCudaFreeSurfaceOpenGL2D(FLB::OptionsCalculation& optionsCalc, FLB
       std::cout << "FREE_3\n";
       FLB::d_FreeSurface2D_4<PRECISION, 9><<<gridSize, blockSize>>>(d_rho, d_flags, d_mass, d_excessMass, d_phi);
       std::cout << "FREE_4\n";
-      std::cout <<"t = " << t<< "\n";
-      if (t >= 50) FLB::Renderer::s_UpdateRender = false;
+      std::cout <<"t = " << t<< "\n\n";
+      if (t >= 10000000) FLB::Renderer::s_UpdateRender = false;
       t += 1;
       if (t%200 == 0)
       {
@@ -459,7 +458,7 @@ void FLB::h_runCudaFreeSurfaceOpenGL2D(FLB::OptionsCalculation& optionsCalc, FLB
 }
 
 template<typename PRECISION>
-void FLB::h_runCudaMonoFluidNoGraphics2D(FLB::OptionsCalculation& optionsCalc, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal, FLB::Units& unitsConverter, PRECISION* d_u, std::vector<PRECISION>& h_u, PRECISION* d_f, PRECISION* d_rho, std::vector<PRECISION>& h_rho, uint8_t* d_flags, PRECISION* d_mass, std::filesystem::path& directorySave)
+void FLB::h_runCudaMonoFluidNoGraphics2D(FLB::OptionsCalculation& optionsCalc, FLB::Mesh* mesh, Fl_Simple_Terminal* terminal, FLB::Units& unitsConverter, PRECISION* d_u, std::vector<PRECISION>& h_u, PRECISION* d_f, PRECISION* d_rho, std::vector<PRECISION>& h_rho, uint8_t* d_flags, std::vector<uint8_t>& h_flags, PRECISION* d_mass, std::filesystem::path& directorySave)
 {
   size_t t = 0; // index of the time interval
   size_t timeSimulation = static_cast<size_t>(unitsConverter.timeToLatticeUnits(optionsCalc.timeSimulation));
@@ -481,20 +480,18 @@ void FLB::h_runCudaMonoFluidNoGraphics2D(FLB::OptionsCalculation& optionsCalc, F
     // save results
     if (t % timeSave == 0)
     {
-      FLB::CudaUtils::copyDataFromDevice<PRECISION>(mesh -> getNumberPointsMesh(), {{2, h_u.data(), d_u}, {1, h_rho.data(), d_rho}});
-      writer.addField<uint8_t>("UInt8", "Flags", mesh -> getDomainFlags(), mesh -> getNumberPointsMesh(), true);
-      writer.addField<PRECISION>(typeFloatDataVTK, "U", h_u, mesh -> getNumberPointsMesh(), false, 1.0, 2, true); // In cuda the y axis is downwards, so it is necessary to change the sign
-      writer.addField<PRECISION>(typeFloatDataVTK, "rho", h_rho, mesh -> getNumberPointsMesh(), true);
+      FLB::CudaUtils::copyDataFromDevice<PRECISION>(mesh -> getNumberPointsMesh(), {{2, sizeof(PRECISION), h_u.data(), d_u}, {1, sizeof(PRECISION), h_rho.data(), d_rho}}, h_flags.data(), d_flags);
+      writer.addField<uint8_t>("UInt8", "Flags", h_flags, mesh -> getNumberPointsMesh(), true);
+      writer.addField<PRECISION>(typeFloatDataVTK, "U", h_u, mesh -> getNumberPointsMesh(), false, unitsConverter.getVelocityParameterToSIUnits(), 2, false); // In cuda the y axis is downwards, so it is necessary to change the sign
+      writer.addField<PRECISION>(typeFloatDataVTK, "rho", h_rho, mesh -> getNumberPointsMesh(), true, unitsConverter.getRhoParameterToSIUnits());
       writer.writeData(mesh, terminal, false, optionsCalc.timeSave);
     }
-    //if (t % 100) terminal -> printf(" TIME : %6.4f seg\n", unitsConverter.timeToSIUnits(t));
-
     t += 1;
   }
 }
 
 template<typename PRECISION>
-void FLB::h_runCudaFreeSurfaceNoGraphics2D(FLB::OptionsCalculation &optionsCalc, FLB::Mesh *mesh, Fl_Simple_Terminal *terminal, FLB::Units& unitsConverter,  PRECISION* d_u, std::vector<PRECISION> &h_u, PRECISION *d_f, PRECISION *d_rho, std::vector<PRECISION>& h_rho, uint8_t *d_flags, PRECISION *d_mass, PRECISION *d_excessMass, PRECISION *d_phi, std::vector<PRECISION>& h_phi, std::filesystem::path& directorySave)
+void FLB::h_runCudaFreeSurfaceNoGraphics2D(FLB::OptionsCalculation &optionsCalc, FLB::Mesh *mesh, Fl_Simple_Terminal *terminal, FLB::Units& unitsConverter,  PRECISION* d_u, std::vector<PRECISION> &h_u, PRECISION *d_f, PRECISION *d_rho, std::vector<PRECISION>& h_rho, uint8_t *d_flags, std::vector<uint8_t>& h_flags, PRECISION *d_mass, PRECISION *d_excessMass, PRECISION *d_phi, std::vector<PRECISION>& h_phi, std::filesystem::path& directorySave)
 {
   size_t t = 0; // index of the time interval
   size_t timeSimulation = static_cast<size_t>(unitsConverter.timeToLatticeUnits(optionsCalc.timeSimulation));
@@ -518,9 +515,9 @@ void FLB::h_runCudaFreeSurfaceNoGraphics2D(FLB::OptionsCalculation &optionsCalc,
     // save results
     if (t % timeSave == 0)
     {
-      FLB::CudaUtils::copyDataFromDevice<PRECISION>(mesh -> getNumberPointsMesh(), {{2, h_u.data(), d_u}, {1, h_rho.data(), d_rho}, {1, h_phi.data(), d_phi}});
-      writer.addField<uint8_t>("UInt8", "Flags", mesh -> getDomainFlags(), mesh -> getNumberPointsMesh(), true);
-      writer.addField<PRECISION>(typeFloatDataVTK, "U", h_u, mesh -> getNumberPointsMesh(), false, 1.0, 2, true); // In cuda the y axis is downwards, so it is necessary to change the sign
+      FLB::CudaUtils::copyDataFromDevice<PRECISION>(mesh -> getNumberPointsMesh(), {{2, sizeof(PRECISION), h_u.data(), d_u}, {1, sizeof(PRECISION), h_rho.data(), d_rho}, {1, sizeof(PRECISION), h_phi.data(), d_phi}}, h_flags.data(), d_flags);
+      writer.addField<uint8_t>("UInt8", "Flags", h_flags, mesh -> getNumberPointsMesh(), true);
+      writer.addField<PRECISION>(typeFloatDataVTK, "U", h_u, mesh -> getNumberPointsMesh(), false, 1.0, 2, false); // In cuda the y axis is downwards, so it is necessary to change the sign
       writer.addField<PRECISION>(typeFloatDataVTK, "rho", h_rho, mesh -> getNumberPointsMesh(), true);
       writer.addField<PRECISION>(typeFloatDataVTK, "phi", h_phi, mesh -> getNumberPointsMesh(), true);
       writer.writeData(mesh, terminal, false, optionsCalc.timeSave);
@@ -530,14 +527,7 @@ void FLB::h_runCudaFreeSurfaceNoGraphics2D(FLB::OptionsCalculation &optionsCalc,
   }
 }
 
-
-
-
-
 // Explicit instantation of the functions because the templates functions are instantiated in a diferent compilation unit
 template void FLB::h_launchCudaCalculations2D<float>(FLB::OptionsCalculation& optionsCalc, std::vector<float>& h_weights, FLB::Mesh* mesh, size_t maxIterations, unsigned int numDimensions, unsigned int numVelocities, Fl_Simple_Terminal* terminal, FLB::RenderLayer* renderLayer, std::filesystem::path& pathSave);
 
-
-//template void FLB::h_runCudaCalculations2D<double>(FLB::OptionsCalculation& optionsCalc, FLB::Window& renderWindow, FLB::VertexArray& vertexArray, FLB::OrthographicCamera& camera, glm::vec3 cameraPosition, double* h_weights, size_t numPointsMesh, size_t maxIterations, unsigned int numDimensions, unsigned int numVelocities);
-
-
+template void FLB::h_launchCudaCalculations2D<double>(FLB::OptionsCalculation& optionsCalc, std::vector<double>& h_weights, FLB::Mesh* mesh, size_t maxIterations, unsigned int numDimensions, unsigned int numVelocities, Fl_Simple_Terminal* terminal, FLB::RenderLayer* renderLayer, std::filesystem::path& pathSave);

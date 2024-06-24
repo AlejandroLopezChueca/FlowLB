@@ -13,8 +13,11 @@ GRAPHICS_API = OPENGL
 # only one fluid affects the dynamics of the problem because it is orders of magnitude heavier (heavy fluid)
 TYPE_PROBLEM = MONOFLUID
 
-# Consider gravity in the y direction
-GRAVITY = FALSE
+# Use Volumetric forces. It can by using acceleration (m/s) or using directly a volumetric force (Newton/m3 or Newton/m2 per m in 2D).
+# If a value other than 0 is indicated in the acceleration, this takes precedence over the value of the volumetric force, allowing both to be combined.
+USE_VOLUMETRIC_FORCE = FALSE
+ACCELERATION =  (0, 0, 0) // y value positive is downwards
+VOLUMETRIC_FORCE = (2,0,0)
 
 # Collision operator. SRT or TRT
 COLLISION_OPERATOR = SRT
@@ -28,9 +31,10 @@ SURFACE_TENSION = FALSE
 # PRECISION OF THE CALCULATION. 32 bits or 64 bits
 PRECISION = 32
 
-# Reference velocity. This value is used for the conversion to the lattice units
-# The default value is 0.1, but for stability purposes it can be necessary to be lower
-REFERENCE_VELOCITY = 0.1
+# Reference velocity. This values are used for the conversion to the lattice units from SI units
+# The default value of LB is 0.1, but for stability purposes it can be necessary to be lower
+REFERENCE_VELOCITY_LB = 0.1
+REFERENCE_VELOCITY_SI = 1.0 # m/s
 
 # Input values. It can be a flow (m3/s) or velocity (m/s)
 #FLOW = 1

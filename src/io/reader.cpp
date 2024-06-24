@@ -8,6 +8,7 @@
 #include "cuda/cudaUtils.cuh"
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
@@ -132,14 +133,20 @@ FLB::CalculationReader::CalculationReader(std::filesystem::path directoryPath)
   : m_DirectoryPath(directoryPath) {}
 
 bool FLB::CalculationReader::checkOptionsCalculation(FLB::OptionsCalculation& optionsCalc, Fl_Simple_Terminal* terminal, bool checkAllOptions)
-{ 
-  if (checkAllOptions && optionsCalc.flow > 1e-15 && (optionsCalc.SIVelocity.x + optionsCalc.SIVelocity.y + optionsCalc.SIVelocity.z) > 1e-15)
+{
+  if (checkAllOptions && optionsCalc.useVolumetricForce && FLB::Math::essentiallyEqual<double>(std::abs(optionsCalc.volumetricForce.x) + std::abs(optionsCalc.volumetricForce.y) + std::abs(optionsCalc.volumetricForce.z), 0.0, 1e-6) && FLB::Math::essentiallyEqual<double>(std::abs(optionsCalc.acceleration.x) + std::abs(optionsCalc.acceleration.y) + std::abs(optionsCalc.acceleration.z), 0.0, 1e-6))
+  {
+    terminal -> printf("[CALCULATION OPTIONS ERROR] If volumetric forces are going to be used, some values of the forces themselves or the acceleration must be indicated\n");
+     return false;
+  }
+
+  if (checkAllOptions && optionsCalc.flow > 1e-10 && (optionsCalc.SIVelocity.x + optionsCalc.SIVelocity.y + optionsCalc.SIVelocity.z) > 1e-10)
   {
     terminal -> printf("[CALCULATION OPTIONS ERROR] Only one of the two arguments, flow and velocity, must be idicated, not both\n");
      return false;
   }
   
-  if (checkAllOptions && optionsCalc.flow < 1e-15 && (optionsCalc.SIVelocity.x + optionsCalc.SIVelocity.y + optionsCalc.SIVelocity.z) < 1e-15)
+  if (checkAllOptions && optionsCalc.flow < 1e-10 && (optionsCalc.SIVelocity.x + optionsCalc.SIVelocity.y + optionsCalc.SIVelocity.z) < 1e-10)
   {
     terminal -> printf("[CALCULATION OPTIONS ERROR] One of the two arguments, flow or velocity, must be idicated\n");
      return false;
@@ -160,22 +167,27 @@ bool FLB::CalculationReader::checkOptionsCalculation(FLB::OptionsCalculation& op
   // check Boundary condtions
   if (optionsCalc.boundaryLeft == FLB::TypesNodes::NONE) 
   {
-    terminal -> printf("[CALCULATION OPTIONS ERROR] The boundary condition LEFT_BOUNDARY cannot be NONE");
+    terminal -> printf("[CALCULATION OPTIONS ERROR] The boundary condition LEFT_BOUNDARY cannot be NONE\n");
     return false;
   }
   if (optionsCalc.boundaryRight == FLB::TypesNodes::NONE) 
   {
-    terminal -> printf("[CALCULATION OPTIONS ERROR] The boundary condition RIGHT_BOUNDARY cannot be NONE");
+    terminal -> printf("[CALCULATION OPTIONS ERROR] The boundary condition RIGHT_BOUNDARY cannot be NONE\n");
     return false;
   }
   if (optionsCalc.boundaryUp == FLB::TypesNodes::NONE) 
   {
-    terminal -> printf("[CALCULATION OPTIONS ERROR] The boundary condition UP_BOUNDARY cannot be NONE");
+    terminal -> printf("[CALCULATION OPTIONS ERROR] The boundary condition UP_BOUNDARY cannot be NONE\n");
     return false;
   }
   if (optionsCalc.boundaryDown == FLB::TypesNodes::NONE) 
   {
-    terminal -> printf("[CALCULATION OPTIONS ERROR] The boundary condition DOWN_BOUNDARY cannot be NONE");
+    terminal -> printf("[CALCULATION OPTIONS ERROR] The boundary condition DOWN_BOUNDARY cannot be NONE\n");
+    return false;
+  }
+  if (optionsCalc.boundaryLeft != optionsCalc.boundaryRight && optionsCalc.boundaryLeft & ~(FLB::TypesNodes::INLET | FLB::TypesNodes::WALL))
+  {
+    terminal -> printf("[CALCULATION OPTIONS ERROR] The boundary conditions LEFT_BOUNDARY and RIGHT_BOUNDARY must be equal if a periodic boundary is selected\n");
     return false;
   }
 
@@ -287,11 +299,46 @@ bool FLB::CalculationReader::getOptionCalculation(std::string& option, std::stri
     else {errorOption = true;}
   }
  
-  else if (option == "GRAVITY")
+  else if (option == "USE_VOLUMETRIC_FORCE")
   {
-    if (value == "FALSE") {optionsCalc.useGravity = false;} 
-    else if (value == "TRUE") {optionsCalc.useGravity = true;}
+    if (value == "FALSE") {optionsCalc.useVolumetricForce = false;} 
+    else if (value == "TRUE") {optionsCalc.useVolumetricForce = true;}
     else {errorOption = true;}
+  }
+  
+  else if (option == "ACCELERATION")
+  {
+    try
+    {
+      std::regex r("\\s+"); // Delete whitespaces
+      value = std::regex_replace(value, r, "");
+      optionsCalc.acceleration.x = std::stod(extractString(value, '(', ',', posLine));
+      optionsCalc.acceleration.y = std::stod(extractString(value, ',', ',', 1, 2, posLine));
+      optionsCalc.acceleration.z = std::stod(extractString(value, ',', ')', 2, 1, posLine));
+    }
+    catch(...)
+    {
+      terminal -> printf("[CALCULATION OPTIONS ERROR] The value of the acceleration in the calculation's file in the line %d is invalid\n", posLine);
+      return false;
+    }
+  }
+
+  else if (option == "VOLUMETRIC_FORCE")
+  {
+    try
+    {
+      std::regex r("\\s+"); // Delete whitespaces
+      value = std::regex_replace(value, r, "");
+      optionsCalc.volumetricForce.x = std::stod(extractString(value, '(', ',', posLine));
+      optionsCalc.volumetricForce.y = std::stod(extractString(value, ',', ',', 1, 2, posLine));
+      optionsCalc.volumetricForce.z = std::stod(extractString(value, ',', ')', 2, 1, posLine));
+      std::cout << std::stod(extractString(value, '(', ',', posLine)) << " VALUE\n";
+    }
+    catch(...)
+    {
+      terminal -> printf("[CALCULATION OPTIONS ERROR] The value of the volumetric force in the calculation's file in the line %d is invalid\n", posLine);
+      return false;
+    }
   }
   
   else if (option == "COLLISION_OPERATOR") 
@@ -323,22 +370,21 @@ bool FLB::CalculationReader::getOptionCalculation(std::string& option, std::stri
     else {errorOption = true;} 
   }
 
-  else if (option == "REFERENCE_VELOCITY")
+  else if (option == "REFERENCE_VELOCITY_LB" || option == "REFERENCE_VELOCITY_SI")
   {
     try
     {
-      optionsCalc.LBVelocity.x = std::stod(value);
-      optionsCalc.LBVelocity.y = std::stod(value);
-      optionsCalc.LBVelocity.z = std::stod(value);
+      if (option == "REFERENCE_VELOCITY_LB") optionsCalc.referenceVelocityLB = std::stod(value);
+      else if (option == "REFERENCE_VELOCITY_SI") optionsCalc.referenceVelocitySI = std::stod(value);
     }
     catch(...)
     {
       terminal -> printf("[CALCULATION OPTIONS ERROR] The value of the reference velocity in the calculation's file in the line %d is invalid\n", posLine);
       return false;
     }
-    if (optionsCalc.flow < 0)
+    if (std::stod(value) < 1e-6)
     {
-      terminal -> printf("[CALCULATION OPTIONS ERROR] The value of the reference velocity in the calculation's file in the line %d cannot be negative\n", posLine);
+      terminal -> printf("[CALCULATION OPTIONS ERROR] The value of the reference velocity in the calculation's file in the line %d cannot be negative or equal to zero\n", posLine);
       return false;
     }
 
@@ -380,6 +426,24 @@ bool FLB::CalculationReader::getOptionCalculation(std::string& option, std::stri
     if (optionsCalc.SIVelocity.x < 0 || optionsCalc.SIVelocity.y < 0 || optionsCalc.SIVelocity.z < 0)
     {
       terminal -> printf("[CALCULATION OPTIONS ERROR] The value of the velocity in the calculation's file in the line %d cannot be negative\n", posLine);
+      return false;
+    }
+  }
+
+  else if (option == "RELAXATION_TIME")
+  {
+    try
+    {
+      optionsCalc.relaxationTime = std::stod(value);
+    }
+    catch(...)
+    {
+      terminal -> printf("[CALCULATION OPTIONS ERROR] The value of the relaxation time in the calculation's file in the line %d is invalid\n", posLine);
+      return false;
+    }
+    if (optionsCalc.relaxationTime <= 0.5)
+    {
+      terminal -> printf("[CALCULATION OPTIONS ERROR] The value of the relaxation time in the calculation's file in the line %d must be greater than 0.5\n", posLine);
       return false;
     }
   }
@@ -612,8 +676,9 @@ bool FLB::CalculationReader::modifyCalculationData(FLB::Mesh* mesh, Fl_Simple_Te
       if (!initialCondition -> initShape(m_DirectoryPath, terminal)) return false;
     }
   }
-  // correct lattice velocities to normalize the values with 0.1 for the max vlaue of the three
-  if (optionsCalc.SIVelocity.x > optionsCalc.SIVelocity.y && optionsCalc.SIVelocity.x > optionsCalc.SIVelocity.z) // the x value is the reference value
+
+  // correct lattice velocities to normalize the values with REFERENCE_VELOCITY for the max value of the three
+  /*if (optionsCalc.SIVelocity.x > optionsCalc.SIVelocity.y && optionsCalc.SIVelocity.x > optionsCalc.SIVelocity.z) // the x value is the reference value
   {
     optionsCalc.LBVelocity.y *= optionsCalc.SIVelocity.y / optionsCalc.SIVelocity.x; 
     optionsCalc.LBVelocity.z *= optionsCalc.SIVelocity.z / optionsCalc.SIVelocity.x; 
@@ -629,7 +694,7 @@ bool FLB::CalculationReader::modifyCalculationData(FLB::Mesh* mesh, Fl_Simple_Te
   {
     optionsCalc.LBVelocity.x *= optionsCalc.SIVelocity.x / optionsCalc.SIVelocity.z; 
     optionsCalc.LBVelocity.y *= optionsCalc.SIVelocity.y / optionsCalc.SIVelocity.z; 
-  }
+  }*/
 
   return true;
 }
@@ -637,8 +702,9 @@ bool FLB::CalculationReader::modifyCalculationData(FLB::Mesh* mesh, Fl_Simple_Te
 void FLB::CalculationReader::getTypeNode(FLB::TypesNodes& typeNode, std::string& value)
 {
   if (value == "INPUT") typeNode = FLB::TypesNodes::INLET;
-  if (value == "OUTPUT") typeNode = FLB::TypesNodes::OUTLET;
-  if (value == "WALL") typeNode = FLB::TypesNodes::WALL;
+  else if (value == "OUTPUT") typeNode = FLB::TypesNodes::OUTLET;
+  else if (value == "WALL") typeNode = FLB::TypesNodes::WALL;
+  else if (value == "PERIODIC") typeNode = FLB::TypesNodes::FLUID;
 }
 
 bool FLB::CalculationReader::readOptionsCalculation(std::string& filePath, FLB::OptionsCalculation& optionsCalc, Fl_Simple_Terminal* terminal, FLB::Mesh* mesh)

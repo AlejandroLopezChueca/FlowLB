@@ -21,13 +21,15 @@ __global__ void FLB::d_FreeSurface2D_1(PRECISION* d_f, const PRECISION* d_rho, c
 
   uint8_t localFlag = d_flags[idx];
   // for the inlet the local mass is constant with a value of 1.0
+  //if (idx == 43 || idx == 62 || idx == 61 || idx == 155 || idx == 114) printf("11XXXSTREAM local_flag = %d idx = %d localMass = %6.4f localRho = %6.4f localPhi = %6.4f Ux = %6.4f Uy = %6.4f\n", +localFlag, idx, d_mass[idx], d_rho[idx], d_phi[idx], d_u[idx], d_u[idx + FLB::d_N]);
+  if (idx == 43 || idx == 62 || idx == 61 || idx == 155 || idx == 114) printf("11XXXSTREAM Forcex = %6.4f Forcey = %6.4f\n", FLB::d_Fx, FLB::d_Fy);
   if (localFlag & (FLB::CT_GAS | FLB::CT_WALL | FLB::CT_INLET)) return; // if cell is gas, inlet or static wall return
    
   unsigned int neighborsIdx[NUMVELOCITIES]; // neighbors indices
   FLB::calculateNeighborsIdxD2Q9(idx, x, y, neighborsIdx); // get neighbors indices
 
   PRECISION incomingLocalf[NUMVELOCITIES];
-  FLB::loadf<PRECISION, 9>(idx, d_f, incomingLocalf, neighborsIdx, t); // First part of the esoteric pull. Load incomoing particle distribution function 
+  FLB::loadf<PRECISION, 9>(idx, d_f, incomingLocalf, neighborsIdx, t); // First part of the esoteric pull. Load incoming particle distribution function 
   
   PRECISION outgoingLocalf[NUMVELOCITIES];
   outgoingLocalf[0] = incomingLocalf[0]; // Value of local node is already loaded
@@ -36,7 +38,8 @@ __global__ void FLB::d_FreeSurface2D_1(PRECISION* d_f, const PRECISION* d_rho, c
   PRECISION localMass = d_mass[idx]; // local mass
   for (int i = 1; i < NUMVELOCITIES; i++) localMass += d_excessMass[neighborsIdx[i]]; // Redistribute excess mass from last iteration coming from flags conversion to ensure mass conservation
 
-  if (localFlag & FLB::CT_FLUID)
+  uint8_t localFlagExtracted = localFlag & FLB::CT_FLUID_GAS_INTERFACE;
+  if (localFlagExtracted == FLB::CT_FLUID)
   {
     // Calculate the change of mass that is streamed for each direction of the node
     for (int i = 1; i < NUMVELOCITIES; i += 2)
@@ -44,12 +47,12 @@ __global__ void FLB::d_FreeSurface2D_1(PRECISION* d_f, const PRECISION* d_rho, c
       //Substract outgoing mass and sum incoming mass
       localMass += incomingLocalf[i + 1] - outgoingLocalf[i];
       localMass += incomingLocalf[i]     - outgoingLocalf[i + 1];
-    //d_massl += d_incomingLocalf[i] - d_outgoingLocalf[i];// Substract outgoing mass and sum incoming mass
+     //localMass += incomingLocalf[i] - outgoingLocalf[i];// Substract outgoing mass and sum incoming mass
     }
   }
-  else if (localFlag & FLB::CT_INTERFACE)
+  else if (localFlagExtracted == FLB::CT_INTERFACE)
   {
-    PRECISION localRho, localUx, localUy, localRhoYoungLaplace;
+    PRECISION localRho, localUx, localUy, localRhoYoungLaplace = 0.0f;
 
     if (localFlag & (FLB::CT_INLET | FLB::CT_OUTLET))
     {
@@ -65,18 +68,19 @@ __global__ void FLB::d_FreeSurface2D_1(PRECISION* d_f, const PRECISION* d_rho, c
     // Calculate the fill level of the node and its neighbors
     PRECISION neighborsPhi[NUMVELOCITIES]; // fill level of the neighbors nodes
     for (int i = 1; i < NUMVELOCITIES; i++) neighborsPhi[i] = d_phi[neighborsIdx[i]];
+
     neighborsPhi[0] = FLB::calculatePhi(localMass, localRho); // fill level of the local node
 
     // If the option of surface tension is selected it is necessary to calculate the local mean curvature contained in the Young-Laplace pressure
     // TODO calculate tension
     if (FLB::d_surfaceTension) localRhoYoungLaplace = 0.0f;
-    else localRhoYoungLaplace = 0.0f;
 
     // VOLUME FORCES (Guo Forcing Scheme)
     const PRECISION localRho2 = 0.5f / localRho;
     // Correct local velocities with volume forces
     localUx = localUx + localRho2 * FLB::d_Fx;
     localUy = localUy + localRho2 * FLB::d_Fy;
+    if (idx == 43 || idx == 62 || idx == 61 || idx == 155 || idx == 124) printf("11XXXSTREAM localUx = %6.4f localUy = %6.4f localRho = %6.4f\n", localUx, localUy, localRho);
 
     // calculate the atmospheric equilibrium distribution function
     PRECISION localFeq[NUMVELOCITIES];
@@ -84,29 +88,33 @@ __global__ void FLB::d_FreeSurface2D_1(PRECISION* d_f, const PRECISION* d_rho, c
      
     // Load neighbors flags
     uint8_t neighborsFlag[NUMVELOCITIES];
-    for (int i = 1; i < NUMVELOCITIES; i++) neighborsFlag[i] = d_flags[neighborsIdx[i]]; //neighbor flag
+    for (int i = 1; i < NUMVELOCITIES; i++) neighborsFlag[i] = d_flags[neighborsIdx[i]] & FLB::CT_FLUID_GAS_INTERFACE; //neighbor flag
 
     // Calculate the change of mass that is streamed for each direction of the node
     for ( int i = 1; i < NUMVELOCITIES; i += 2)
     {
-      uint8_t neighborFlag = neighborsFlag[i];
+      uint8_t neighborFlagExtracted = neighborsFlag[i];
       // If the neighborFlag is not fluid or interface the change of mass to sum is 0
-      if (neighborFlag == FLB::CT_FLUID) localMass += incomingLocalf[i + 1] - outgoingLocalf[i];
-      else if (neighborFlag == FLB::CT_INTERFACE) localMass += (incomingLocalf[i + 1] - outgoingLocalf[i]) * 0.5f * (neighborsPhi[neighborsIdx[i]] + neighborsPhi[0]);
+      if (neighborFlagExtracted == FLB::CT_FLUID) localMass += incomingLocalf[i + 1] - outgoingLocalf[i];
+      else if (neighborFlagExtracted == FLB::CT_INTERFACE) localMass += (incomingLocalf[i + 1] - outgoingLocalf[i]) * 0.5f * (neighborsPhi[i] + neighborsPhi[0]);
+      if (idx == 124) printf("111 local_flag = %d idx = %d  neighFlag = %d i = %d incoming = %6.4f out = %6.4f localPhi = %6.4f neighborsPhi = %6.4f neighborsIdx = %d\n", +localFlag, idx, +neighborsFlag[i], i, incomingLocalf[i+1], outgoingLocalf[i], neighborsPhi[0], neighborsPhi[i], neighborsIdx[i]);
 
-      neighborFlag = neighborsFlag[i + 1];
-      if (neighborFlag == FLB::CT_FLUID) localMass += incomingLocalf[i] - outgoingLocalf[i + 1];
-      else if (neighborFlag == FLB::CT_INTERFACE) localMass += (incomingLocalf[i] - outgoingLocalf[i + 1]) * 0.5f * (neighborsPhi[neighborsIdx[i]] + neighborsPhi[0]);;
+      neighborFlagExtracted = neighborsFlag[i + 1];
+      if (neighborFlagExtracted == FLB::CT_FLUID) localMass += incomingLocalf[i] - outgoingLocalf[i + 1];
+      else if (neighborFlagExtracted == FLB::CT_INTERFACE) localMass += (incomingLocalf[i] - outgoingLocalf[i + 1]) * 0.5f * (neighborsPhi[i + 1] + neighborsPhi[0]);;
+      if (idx == 124) printf("111 local_flag = %d idx = %d  neighFlag = %d i = %d incoming = %6.4f out = %6.4f localPhi = %6.4f neighborsPhi = %6.4f neighborsIdx = %d\n", +localFlag, idx, +neighborsFlag[i+1], i+1, incomingLocalf[i], outgoingLocalf[i+1], neighborsPhi[0], neighborsPhi[i + 1], neighborsIdx[i+1]);
     }
 
     // Calculate reconstructed particle distribution function
     for (int i = 1; i < NUMVELOCITIES; i += 2)
     {
       incomingLocalf[i] = localFeq[i] - outgoingLocalf[i + 1] + localFeq[i + 1];
-      incomingLocalf[i + 1] = localFeq[i +1] - outgoingLocalf[i] + localFeq[1];
+      incomingLocalf[i + 1] = localFeq[i + 1] - outgoingLocalf[i] + localFeq[i];
+      if (idx == 124) printf("111 local_flag = %d idx = %d incoming1 = %6.4f incoming2 = %6.4f \n", +localFlag, idx, incomingLocalf[i], incomingLocalf[i+1]);
     }
-    // Save reconstructed particle distribution function for gas type to use in the main kernel
+    // Save reconstructed particle distribution function for gas type only to use in the main kernel
     FLB::storeReconstructedGasf<PRECISION, 9>(idx, d_f, incomingLocalf, neighborsFlag, neighborsIdx, t);
+  if (idx == 114) printf("11XXXSTREAM local_flag = %d idx = %d localMass = %6.4f localRho = %6.4f\n", +localFlag, idx, localMass, localRho);
   }
 
   d_mass[idx] = localMass;
@@ -120,8 +128,10 @@ __global__ void FLB::d_FreeSurface2D_2(uint8_t* d_flags)
   if (x >= d_Nx || y >= d_Ny) return; // Prevent threads outside domain 
   
   const unsigned int idx = x + y * d_Nx;
-  uint8_t localFlag = d_flags[idx]; //flag of the node
-  if (localFlag == FLB::CT_INTERFACE_FLUID)
+  if (idx ==43) printf("22XXXSTREAM local_flag = %d idx = %d \n", +d_flags[idx], idx);
+  uint8_t localFlagExtracted = d_flags[idx] & FLB::CT_INTERFACE_FLUID; //  it can be fluid, interface or interface-fluid
+
+  if (localFlagExtracted == FLB::CT_INTERFACE_FLUID)
   {
     unsigned int neighborsIdx[NUMVELOCITIES]; // neighbors indices
     FLB::calculateNeighborsIdxD2Q9(idx, x, y, neighborsIdx); // get neighbors indices
@@ -129,9 +139,11 @@ __global__ void FLB::d_FreeSurface2D_2(uint8_t* d_flags)
     for (int i = 1; i < NUMVELOCITIES; i++)
     {
       uint8_t neighborFlag = d_flags[neighborsIdx[i]]; //neighbor flag
-      if (neighborFlag == FLB::CT_INTERFACE_GAS) d_flags[neighborsIdx[i]] = FLB::CT_INTERFACE;
-      else if (neighborFlag == FLB::CT_GAS) d_flags[neighborsIdx[i]] = FLB::CT_GAS_INTERFACE; 
+      uint8_t neighborFlagExtracted = neighborFlag & FLB::CT_INTERFACE_GAS; // the extraction can be interface-gas, gas or interface
+      if (neighborFlagExtracted == FLB::CT_INTERFACE_GAS) d_flags[neighborsIdx[i]] = neighborFlag & ~FLB::CT_GAS; // first delete gas flag and change to interface flag
+      else if (neighborFlagExtracted == FLB::CT_GAS) d_flags[neighborsIdx[i]] = (neighborFlag & ~FLB::CT_GAS) | FLB::CT_GAS_INTERFACE; // first delete the gas flag and change to interface if it is gas
     }
+  if (idx ==43) printf("22XXXSTREAM local_flag = %d flag44 = %d idx = %d \n", +d_flags[idx], d_flags[neighborsIdx[1]], idx);
   }
 }
 
@@ -143,13 +155,14 @@ __global__ void FLB::d_FreeSurface2D_3(PRECISION* d_f, PRECISION* d_rho, PRECISI
   if (x >= d_Nx || y >= d_Ny) return; // Prevent threads outside domain 
   
   const unsigned int idx = x + y * FLB::d_Nx;
-  uint8_t localFlag = d_flags[idx]; //flag of the node
-  if (localFlag == FLB::CT_GAS_INTERFACE)
+  uint8_t localFlagExtracted = d_flags[idx] & (FLB::CT_GAS_INTERFACE | FLB::CT_INTERFACE_GAS);
+  
+  if (localFlagExtracted == FLB::CT_GAS_INTERFACE)
   {
     unsigned int neighborsIdx[NUMVELOCITIES]; // neighbors indices
     FLB::calculateNeighborsIdxD2Q9(idx, x, y, neighborsIdx); // get neighbors indices
     PRECISION localRho, localUx, localUy;
-    FLB::calculateAverageValuesNeigbors2D<PRECISION, 9>(idx, d_flags, localRho, localUx, localUy, d_rho, d_u, neighborsIdx);
+    FLB::calculateAverageValuesNeighbors2D<PRECISION, 9>(idx, d_flags, localRho, localUx, localUy, d_rho, d_u, neighborsIdx);
     // Calulate equilibrium function
     PRECISION localFeq[NUMVELOCITIES];
     // VOLUME FORCES (Guo Forcing Scheme)
@@ -160,17 +173,20 @@ __global__ void FLB::d_FreeSurface2D_3(PRECISION* d_f, PRECISION* d_rho, PRECISI
     FLB::calculateEquilibriumDDF2Q9(localRho, localUx, localUy, localFeq);
     // Write thte equilibrium function  
     FLB::storef<PRECISION, 9>(idx, d_f, localFeq, neighborsIdx, t);
+    //if (idx == 44) printf("333XXXSTREAM local_flag = %d idx = %d localf0 = %6.4f localf1 = %6.4f localf2 = %6.4f localf3 = %6.4f localf4 = %6.4f localf5 = %6.4f localf6 = %6.4f local7 = %6.4f localRho = %6.4f\n", +d_flags[idx], idx, d_f[0], localFeq[1], localFeq[2],localFeq[3] ,localFeq[4] ,localFeq[5] ,localFeq[6], localFeq[7] , localRho);
   }
-  else if (localFlag == FLB::CT_INTERFACE_GAS)
+  else if (localFlagExtracted == FLB::CT_INTERFACE_GAS)
   {
     unsigned int neighborsIdx[NUMVELOCITIES]; // neighbors indices
     FLB::calculateNeighborsIdxD2Q9(idx, x, y, neighborsIdx); // get neighbors indices
     for (int i = 1; i < NUMVELOCITIES; i++)
     {
-      uint8_t& neighborFlag = d_flags[neighborsIdx[i]]; //neighbor flag
-      if (neighborFlag == CT_FLUID || neighborFlag == CT_INTERFACE_FLUID) neighborFlag = FLB::CT_INTERFACE;
+      uint8_t neighborFlag = d_flags[neighborsIdx[i]];
+      uint8_t neighborFlagExtracted = neighborFlag & (FLB::CT_INLET_FLUID | FLB::CT_INTERFACE);
+      if (neighborFlagExtracted != FLB::CT_INLET_FLUID && (neighborFlagExtracted == FLB::CT_FLUID || neighborFlagExtracted == FLB::CT_INTERFACE_FLUID)) d_flags[neighborsIdx[i]] = (neighborFlag & ~FLB::CT_INTERFACE_FLUID) | FLB::CT_INTERFACE; // delete interface_fluid flag and change to interface
     }
   }
+  if (idx == 43) printf("333XXXSTREAM local_flag = %d idx = %d \n", +d_flags[idx], idx);
 }
 
 template<typename PRECISION, int NUMVELOCITIES>
@@ -182,14 +198,16 @@ template<typename PRECISION, int NUMVELOCITIES>
   
   const unsigned int idx = x + y * FLB::d_Nx;
   uint8_t localFlag = d_flags[idx]; //flag of the node
-  if (localFlag & (FLB::CT_WALL | FLB::CT_MWALL)) return;
+  // for the inlet the local mass is constant with a value of 1.0 and phi equal to 1.0
+  if (localFlag & (FLB::CT_WALL | FLB::CT_MWALL | FLB::CT_INLET)) return;
   
   PRECISION localRho = d_rho[idx]; // local density
   PRECISION localMass = d_mass[idx]; // local mass
   PRECISION localExcessMass = 0.0f; // local excess mass
   PRECISION localPhi = 0.0f; // local fill level
 
-  uint8_t localFlagExtracted = localFlag & (FLB::CT_FLUID | FLB::CT_GAS | FLB::CT_INTERFACE | FLB::CT_GAS_INTERFACE);
+  uint8_t localFlagExtracted = localFlag & (FLB::CT_FLUID_GAS_INTERFACE | FLB::CT_GAS_INTERFACE);
+  if (idx == 43 || idx == 62 || idx ==63 || idx == 124) printf("444XXXSTREAM local_flag = %d localFlagExtracted = %d idx = %d localPhi = %6.4f localMass = %6.4f localRho = %6.4f\n", +d_flags[idx], localFlagExtracted, idx, d_phi[idx], d_mass[idx], d_rho[idx]);
   switch (localFlagExtracted) 
   {
     case 1: // FLB::CT_FLUID
@@ -222,13 +240,13 @@ template<typename PRECISION, int NUMVELOCITIES>
       }
       else localExcessMass = 0.0f; // Without excess mass the local mass doesn't change
       
-      localPhi = FLB::calculatePhi(localExcessMass, localRho);
+      localPhi = FLB::calculatePhi(localMass, localRho);
       break;
     }
     
     case 5: // FLB::CT_INTERFACE_FLUID
     {
-      d_flags[idx] = FLB::CT_FLUID; // Change node to fluid type
+      d_flags[idx] = localFlag & ~FLB::CT_INTERFACE; // first delete flag of interface and Change node to fluid type (the fluid flag remains after the deletion)
       localExcessMass = localMass - localRho; // save excess local mass
       localMass = localRho; //fluid mass has to be equal to local density
       localPhi = 1.0f;
@@ -237,16 +255,16 @@ template<typename PRECISION, int NUMVELOCITIES>
     
     case 6: // FLB::CT_INTERFACE_GAS
     {
-      d_flags[idx] = FLB::CT_GAS; // change node to gas type
+      d_flags[idx] = localFlag & ~FLB::CT_INTERFACE; // first delete flag of interface and change node to gas type (the inteface flag remains after the deletion)
       localExcessMass = localMass; // excess mass is equal to all the local mass
       localMass = 0.0f; // local mass has to be 0
       localPhi = 0.0f;
       break;
     }
 
-    case 255: // FLB::CT_GAS_INTERFACE
+    case 128: // FLB::CT_GAS_INTERFACE
     {
-      d_flags[idx] = FLB::CT_INTERFACE; // change to iterface type
+      d_flags[idx] = (localFlag & ~FLB::CT_GAS_INTERFACE) | FLB::CT_INTERFACE; // first delete flag of gas_interface and change to iterface type
       if (localMass > localRho)
       {
 	localExcessMass = localMass - localRho;
@@ -259,27 +277,29 @@ template<typename PRECISION, int NUMVELOCITIES>
       }
       else localExcessMass = 0.0f; // Without excess mass the local mass doesn't change
       
-      localPhi = FLB::calculatePhi(localExcessMass, localRho);
+      localPhi = FLB::calculatePhi(localMass, localRho);
       break;
     }  
+    if (idx == 43 || idx == 44 || idx == 62) printf("444XXXSTREAM local_flag = %d idx = %d localPhi = %6.4f\n", +d_flags[idx], idx, d_phi[idx]);
   }
-
+  
   unsigned int neighborsIdx[NUMVELOCITIES]; // neighbors indices
   FLB::calculateNeighborsIdxD2Q9(idx, x, y, neighborsIdx); // get neighbors indices
-  uint8_t cont = 0; // Count neighboring nodes that are fluid or interface
+  int cont = 0; // Count neighboring nodes that are fluid or interface
   // The excess mass is evenly distributed for all neighboring nodes that are fluid or interface
   for (int i = 1; i < NUMVELOCITIES; i++)
   {
-    uint8_t d_neighborFlag = d_flags[neighborsIdx[i]]; //neighbor flag
-    cont += (uint8_t)(d_neighborFlag == FLB::CT_FLUID || d_neighborFlag == FLB::CT_INTERFACE || d_neighborFlag == FLB::CT_INTERFACE_FLUID || d_neighborFlag == FLB::CT_GAS_INTERFACE);
+    uint8_t neighborFlagExtracted = d_flags[neighborsIdx[i]] & (FLB::CT_INTERFACE_FLUID | FLB::CT_GAS_INTERFACE); //neighbor flag
+    cont += (int)(neighborFlagExtracted == FLB::CT_FLUID || neighborFlagExtracted == FLB::CT_INTERFACE || neighborFlagExtracted == FLB::CT_INTERFACE_FLUID || neighborFlagExtracted == FLB::CT_GAS_INTERFACE);
   }
 
-  localMass += cont > 0u ? 0.0f : localExcessMass; // If there are not neighbors nodes of type fluid or interface save mass in local node to conserve mass
-  localExcessMass = cont > 0u ? localExcessMass/(float)cont : 0.0f; // equal distribution of the mass for all neighboring nodes that are fluid or interface
+  localMass += cont > 0 ? 0.0f : localExcessMass; // If there are not neighbors nodes of type fluid or interface save mass in local node to conserve mass
+  localExcessMass = cont > 0 ? localExcessMass/(float)cont : 0.0f; // equal distribution of the mass for all neighboring nodes that are fluid or interface
 
   d_mass[idx] = localMass;
   d_excessMass[idx] = localExcessMass;
   d_phi[idx] = localPhi;
+  if (idx == 43 || idx == 62) printf("444XXXSTREAM local_flag = %d idx = %d localMass = %6.4f localPhi = %6.4f\n", +d_flags[idx], idx, localMass, localPhi);
 }
 
 template<typename PRECISION, int NUMVELOCITIES>
@@ -289,7 +309,7 @@ __global__ void FLB::d_StreamCollide2D(PRECISION* d_f, PRECISION* d_rho, PRECISI
   const unsigned int y = threadIdx.y + blockIdx.y *blockDim.y;
 
   if (x >= d_Nx || y >= d_Ny) return; // Prevent threads outside domain 
-  const unsigned int idx = x + y * d_Nx;
+  const unsigned int idx = x + y * FLB::d_Nx;
   
   const uint8_t localFlag = d_flags[idx];
   if (localFlag & (FLB::CT_GAS | FLB::CT_WALL)) return; // if cell is gas or static wall return
@@ -304,45 +324,62 @@ __global__ void FLB::d_StreamCollide2D(PRECISION* d_f, PRECISION* d_rho, PRECISI
 
   // Apply Boundary conditions in input and output
   const uint8_t localFlagInletOutlet = localFlag & (FLB::CT_INLET | FLB::CT_OUTLET); // extract inlet - outlet flag
-  if (localFlagInletOutlet) 
+  /*if (localFlagInletOutlet) 
   {
     localRho = d_rho[idx];
     localUx = d_u[idx];
     localUy = d_u[idx + FLB::d_N];
-  } 
+  }*/
+
+  if (localFlagInletOutlet & FLB::CT_INLET) 
+  {
+    localRho = d_rho[idx+1];
+    //FLB::calculateDensity<PRECISION, 9>(localf, localRho);
+    localUx = d_u[idx];
+    localUy = d_u[idx + FLB::d_N];
+  }
+  else if (localFlag & FLB::CT_OUTLET)
+  {
+    localRho = d_rho[idx];
+    localUx = d_u[idx - 1];
+    localUy = d_u[idx + FLB::d_N - 1];
+  }
   else
   { //Calculate density and velocity
     FLB::calculateDensity<PRECISION, 9>(localf, localRho);
     FLB::calculateVelocityD2Q9<PRECISION>(localf, localRho, localUx, localUy);
   }
-   
   // After collision it is neccesary to check if the interface flag needs to change
   const uint8_t localFlagInterface = localFlag & FLB::CT_INTERFACE; // extract interface flag
   if (localFlagInterface == FLB::CT_INTERFACE)
   {
     const PRECISION localMass = d_mass[idx]; //local mass
-    bool flagIF = false, flagIG = false;
+    bool neighborsNotFluid = true, neighborsNotGas = true; // the node doesn't have a neighbor with fluid or gas
     for (int i = 1; i < NUMVELOCITIES; i++)
     {
-      uint8_t neighborFlag = d_flags[neighborsIdx[i]]; //neighbor flag
-      flagIF = flagIF || (neighborFlag == FLB::CT_FLUID);
-      flagIG = flagIG || (neighborFlag == FLB::CT_GAS);
+      uint8_t neighborFlagExtracted = d_flags[neighborsIdx[i]] & FLB::CT_FLUID_GAS_INTERFACE; //neighbor flag
+      neighborsNotFluid = neighborsNotFluid && (neighborFlagExtracted != FLB::CT_FLUID);
+      neighborsNotGas = neighborsNotGas && (neighborFlagExtracted != FLB::CT_GAS);
     }
     // (1 + epsilon) * d_rhol to prevents the unwanted effect of fast oscillations between cell type
-    if ((localMass > 1.001f * localRho) || flagIF) d_flags[idx] = FLB::CT_INTERFACE_FLUID; // change flag to interface - fluid
-    else if ((localMass < -0.001f) || flagIG) d_flags[idx] = FLB::CT_INTERFACE_GAS; // change flag to interface - gas
+    if ((localMass > 1.001f * localRho) || neighborsNotGas) d_flags[idx] = (localFlag & ~FLB::CT_FLUID_GAS_INTERFACE) | FLB::CT_INTERFACE_FLUID; // change flag to interface - fluid
+    else if ((localMass < -0.001f) || neighborsNotFluid) d_flags[idx] = (localFlag & ~FLB::CT_FLUID_GAS_INTERFACE) | FLB::CT_INTERFACE_GAS; // change flag to interface - gas  
   }
+
     
   // VOLUME FORCES (Guo Forcing Scheme)
   PRECISION localFi[NUMVELOCITIES]; // Forcing terms
-  if (FLB::d_useGravity)
+  if (FLB::d_useVolumetricForce)
   {
-    const PRECISION d_rhol2 = 0.5f / localRho;
+    const PRECISION rhol2 = 0.5f / localRho;
     // Correct local velocities with volume forces
-    localUx = localUx + d_rhol2 * FLB::d_Fx;
-    localUy = localUy + d_rhol2 * FLB::d_Fy;
+    localUx = localUx + rhol2 * FLB::d_Fx;
+    localUy = localUy + rhol2 * FLB::d_Fy;
     FLB::calculateForcingTerms2D<PRECISION>(localFi, localUx, localUy);
+    if (idx == 90013 && (t == 10000) ) printf("ZZZZZZZSTREAM fx = %10.6f localUx = %10.6f\n", FLB::d_Fx, localUx);
+    if (idx == 90013 && (t == 10000)) printf("STREAM local_flag = %d idx = %d localf0 = %10.6f localf1 = %10.6f localf2 = %10.6f localf3 = %10.6f localf4 = %10.6f localf5 = %10.6f localf6 = %10.6f local7 = %10.6f localFi8 = %10.6f\n", +d_flags[idx], idx, localFi[0], localFi[1], localFi[2],localFi[3] ,localFi[4] ,localFi[5] ,localFi[6], localFi[7], localFi[8] );
   }
+    //if (idx == 124) printf("STREAM local_flag = %d idx = %d localf0 = %6.4f localf1 = %6.4f localf2 = %6.4f localf3 = %6.4f localf4 = %6.4f localf5 = %6.4f localf6 = %6.4f local7 = %6.4f localFi\n", +d_flags[idx], idx, localFi[0], localFi[1], localFi[2],localFi[3] ,localFi[4] ,localFi[5] ,localFi[6], localFi[7] );
 
   // Update fields except if flag is input or output (boundary)
   if (!localFlagInletOutlet)
@@ -350,11 +387,30 @@ __global__ void FLB::d_StreamCollide2D(PRECISION* d_f, PRECISION* d_rho, PRECISI
     d_rho[idx] = localRho;
     d_u[idx] = localUx;
     d_u[idx + FLB::d_N] = localUy;
+
   }
+  else if (localFlag & FLB::CT_OUTLET)
+  {
+    d_u[idx] = localUx;
+    d_u[idx + FLB::d_N] = localUy;
+  }
+  // TODO
+  d_rho[idx] = localRho;
+
 
   // Calculate equilibrium function
   PRECISION localFeq[NUMVELOCITIES];
-  FLB::calculateEquilibriumDDF2Q9(localRho, localUx, localUy, localFeq);
+  FLB::calculateEquilibriumDDF2Q9<PRECISION>(localRho, localUx, localUy, localFeq);
+  if ((idx == 80020 || idx == 80021) && (t==0 || t== 1 || t == 2 || t == 3 || t==400)) 
+  {
+      //printf("idx = %d  localf1 = %6.4f localf2 = %6.4f 3 = %6.4f 4 = %6.4f 5 = %6.4f 6 = %6.4f  7 = %6.4f  8 = %6.4f t = %d\n",idx, localf[1], localf[2], localf[3], localf[4], localf[5],localf[6],localf[7],localf[8], t);
+      printf("idx = %d  localFeq1 = %6.4f localFeq2 = %6.4f 3 = %6.4f 4 = %6.4f 5 = %6.4f 6 = %6.4f  7 = %6.4f  8 = %6.4f t = %d\n",idx, localFeq[1], localFeq[2], localFeq[3], localFeq[4], localf[5],localFeq[6],localFeq[7],localFeq[8], t);
+    //float rhoRho = localf[0];
+    //for (int i = 1; i < NUMVELOCITIES; i++) rhoRho += localf[i];
+    //float uxl = (localf[1] - localf[2] + localf[5] - localf[6] + localf[7] - localf[8]) / localRho;
+    //float uxlEq = (localFeq[1] - localFeq[2] + localFeq[5] - localFeq[6] + localFeq[7] - localFeq[8]) / localRho;
+    printf("idx = %d localUx = %6.4f localRho = %6.4f t = %d\n", idx, localUx, localRho, t);
+  }
 
   float invTau = FLB::d_invTau; //Inverse relaxation time
 
@@ -390,12 +446,18 @@ __global__ void FLB::d_StreamCollide2D(PRECISION* d_f, PRECISION* d_rho, PRECISI
     case 0:// SRT
     {
       // Perform  collision
-      if (!localFlagInletOutlet)
+      if (!localFlagInletOutlet) // not inlet or outlet
       {
-	if (FLB::d_useGravity)
+	if (FLB::d_useVolumetricForce)
 	{
-	  const float d_taul = 1.0f - 0.5f * invTau; //Relaxation of the forcing terms	
-	  for (int i = 0; i < NUMVELOCITIES; i++) localf[i] = (1.0f - invTau) * localf[i] + invTau * localFeq[i] + d_taul * localFi[i];
+	  const float taul = 1.0f - 0.5f * invTau; //Relaxation of the forcing terms	
+  //if (idx == 124) printf("STREAM local_flag = %d idx = %d localf0 = %6.4f localf1 = %6.4f localf2 = %6.4f localf3 = %6.4f localf4 = %6.4f localf5 = %6.4f localf6 = %6.4f local7 = %6.4f taul = %6.4f\n", +d_flags[idx], idx, localf[0], localf[1], localf[2],localf[3] ,localf[4] ,localf[5] ,localf[6], localf[7] , taul);
+  
+  //if (idx == 124) printf("idx = 2  valor = %6.4f valor2 = %6.4f, valor3 = %6.4f localFi = %6.4f\n", (1.0f - invTau)*localf[2], invTau*localFeq[2], taul*localFi[2], localFi[2]);
+
+	  for (int i = 0; i < NUMVELOCITIES; i++) localf[i] = (1.0f - invTau) * localf[i] + invTau * localFeq[i] + taul * localFi[i];
+
+  //if (idx == 124) printf("STREAM local_flag = %d idx = %d localf0 = %6.4f localf1 = %6.4f localf2 = %6.4f localf3 = %6.4f localf4 = %6.4f localf5 = %6.4f localf6 = %6.4f local7 = %6.4f\n", +d_flags[idx], idx, localf[0], localf[1], localf[2],localf[3] ,localf[4] ,localf[5] ,localf[6], localf[7] );
 	}
 	else
 	{
@@ -418,8 +480,9 @@ __global__ void FLB::d_StreamCollide2D(PRECISION* d_f, PRECISION* d_rho, PRECISI
       if (!localFlagInletOutlet)
       {
 
-      // decompose the population in the symmetric and antisymmetric parts 
-	if (FLB::d_useGravity)
+      // decompose the population in the symmetric and antisymmetric parts
+	// TODO
+	if (FLB::d_useVolumetricForce)
 	{
 
 	}
@@ -445,6 +508,11 @@ __global__ void FLB::d_StreamCollide2D(PRECISION* d_f, PRECISION* d_rho, PRECISI
       }
       break;
     } 
+  }
+  if ((idx == 80020 || idx == 80021) && (t==0 || t== 1 || t ==2 || t ==3 || t==400)) 
+  {
+      //printf("idx = %d neighbor1 = %d neighbor2 = %d neighbor3 = %d neighbor4 = %d neighbor5 = %d neighbor6 = %d neighbor7 = %d neighbor8 = %d \n", idx, neighborsIdx[1], neighborsIdx[2], neighborsIdx[3], neighborsIdx[4], neighborsIdx[5], neighborsIdx[6], neighborsIdx[7], neighborsIdx[8]);
+      printf("idx = %d  localf1 = %6.4f 2 = %6.4f 3 = %6.4f 4 = %6.4f 5 = %6.4f 6 = %6.4f  7 = %6.4f  8 = %6.4f localFlagInletOutlet = %d localFlag = %d t = %d\n\n",idx, localf[1], localf[2], localf[3], localf[4], localf[5],localf[6],localf[7],localf[8], localFlagInletOutlet, localFlag, t);
   }
 
   FLB::storef<PRECISION, 9>(idx, d_f, localf, neighborsIdx, t); // second part of esoteric pull.

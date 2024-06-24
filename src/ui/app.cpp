@@ -301,10 +301,13 @@ void FLB::App::calculate()
   else if (optionsCalc.precision == 64)
   {
 
-    double h_weights[9] = {4.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/36.0, 1.0/36.0, 1.0/36.0, 1.0/36.0};
+    std::vector<double> h_weights = {4.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/9.0, 1.0/36.0, 1.0/36.0, 1.0/36.0, 1.0/36.0};
 
   if (optionsCalc.typeAnalysis == 0) // 2D
   {
+    numDimensions = 2;
+    numVelocities = 9;
+    FLB::h_launchCudaCalculations2D<double>(optionsCalc, h_weights, m_Mesh, maxIterations, numDimensions, numVelocities, m_Terminal.get(), prtRenderlayer, directorySave);
 
   }
 

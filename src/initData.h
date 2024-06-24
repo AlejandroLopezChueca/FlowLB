@@ -15,6 +15,24 @@
 namespace FLB
 { 
   /**
+   * @brief
+   *
+   */ 
+  void initFreeSurfaceFlags(std::vector<uint8_t>& h_flags, const bool is3D, const unsigned int numVelocities, const unsigned int idx, const  unsigned int x, const unsigned int y, const unsigned int z, const unsigned int h_Nx, const unsigned int h_Ny, const unsigned h_Nz);
+
+  /**
+   * @brief Calculate the index of the neighbors taking into acount the bounding box if the domain
+   *
+   */
+  void calculateNeighborsIndexD2Q9BBox(std::vector<uint32_t>& neighborsIdx, const unsigned int idx, const unsigned int h_Nx, const unsigned int h_Ny, const unsigned int x, const unsigned int y);
+  
+  /**
+   * @brief Calculate the index of the neighbors taking into acount that the domain is infinite, periodic condionts in all boundaries
+   *
+   */
+  void calculateNeighborsIndexD2Q9(std::vector<uint32_t>& neighborsIdx, const unsigned int idx, const unsigned int h_Nx, const unsigned int h_Ny, const unsigned int x, const unsigned int y);
+
+  /**
    * @brief Obtaining the index of the point with a x coordinate equal or superior to the XSI coordinate
    * @param[in]  xSi           coordinate x in SI units
    * @param[in]  points        vectors whith all the points that define the domain 
@@ -54,7 +72,7 @@ namespace FLB
    *
    */
   template<typename PRECISION>
-  inline void initEquilibriumDDF2Q9(std::vector<PRECISION>& h_f, const std::vector<PRECISION>& h_weights, PRECISION ux, PRECISION uy, const double rho, const unsigned int idx, const unsigned numberPoints)
+  inline void initEquilibriumDDF2Q9(std::vector<PRECISION>& localFeq, const std::vector<PRECISION>& h_weights, PRECISION ux, PRECISION uy, const double rho, const unsigned int idx, const unsigned numberPoints)
   {
     const double u2 = 3.0 * (ux * ux + uy * uy);
     const double rhow14 = h_weights[1] * rho;
@@ -64,20 +82,37 @@ namespace FLB
     const double u0 = ux - uy;
     const double u1 = ux + uy;
     
-    h_f[idx] = h_weights[0] * rho * (1.0 - 0.5 * u2);
+    localFeq[0] = h_weights[0] * rho * (1.0 - 0.5 * u2);
+    localFeq[1] = rhow14 * (1.0 + ux - 0.5 * u2 + 0.5 * ux * ux);
+    localFeq[2] = rhow14 * (1.0 - ux - 0.5 * u2 + 0.5 * ux * ux);
+    localFeq[3] = rhow14 * (1.0 + uy - 0.5 * u2 + 0.5 * uy * uy);
+    localFeq[4] = rhow14 * (1.0 - uy - 0.5 * u2 + 0.5 * uy * uy);
+    localFeq[5] = rhow58 * (1.0 + u1 - 0.5 * u2 + 0.5 * u1 * u1);
+    localFeq[6] = rhow58 * (1.0 - u1 - 0.5 * u2 + 0.5 * u1 * u1);
+    localFeq[7] = rhow58 * (1.0 + u0 - 0.5 * u2 + 0.5 * u0 * u0);
+    localFeq[8] = rhow58 * (1.0 - u0 - 0.5 * u2 + 0.5 * u0 * u0);
 
-    h_f[idx + numberPoints * 1] = rhow14 * (1.0 + ux - 0.5 * u2 + 0.5 * ux * ux);
-    h_f[idx + numberPoints * 2] = rhow14 * (1.0 - ux - 0.5 * u2 + 0.5 * ux * ux);
-    h_f[idx + numberPoints * 3] = rhow14 * (1.0 + uy - 0.5 * u2 + 0.5 * uy * uy);
-    h_f[idx + numberPoints * 4] = rhow14 * (1.0 - uy - 0.5 * u2 + 0.5 * uy * uy);
-    h_f[idx + numberPoints * 5] = rhow58 * (1.0 + u1 - 0.5 * u2 + 0.5 * u1 * u1);
-    h_f[idx + numberPoints * 6] = rhow58 * (1.0 - u1 - 0.5 * u2 + 0.5 * u1 * u1);
-    h_f[idx + numberPoints * 7] = rhow58 * (1.0 + u0 - 0.5 * u2 + 0.5 * u0 * u0);
-    h_f[idx + numberPoints * 8] = rhow58 * (1.0 - u0 - 0.5 * u2 + 0.5 * u0 * u0);
+    if (idx == 601 || idx == 602 || idx == 4808) 
+    //if (idx == 4808 || idx == 4809) 
+    {
+      std ::cout <<"idx = "<<idx<<" localFeq0 = " <<localFeq[0]<< " 1 = " << localFeq[1] << " 2 = " << localFeq[2]<< " 3 = " << localFeq[3] << " 4 = " << localFeq[4] << " 5 = " << localFeq[5]<< " 6 = " << localFeq[6] << " 7 = " << localFeq[7] << " 8 = " << localFeq[8]  << "\n";
+    }
   }
-  
+
+  template<typename PRECISION, int NUMVELOCITIES>
+  inline void storef(const unsigned int idx, std::vector<PRECISION>& h_f, const std::vector<PRECISION>& localf, const std::vector<uint32_t>& neighborsIdx, size_t t, const unsigned numberPoints)
+  {
+    // esoteric pull
+    h_f[idx] = localf[0];
+    for (int i = 1; i < NUMVELOCITIES; i += 2)
+    {
+      h_f[neighborsIdx[i] + numberPoints * (t%2ul ? i + 1 : i)] = localf[i]; 
+      h_f[idx + numberPoints * (t%2ul ? i : i + 1)] = localf[i + 1];  
+    }
+  }
+ 
   template<typename PRECISION>
-  using initFieldsData = void(*)(std::vector<PRECISION>&, std::vector<PRECISION>&, const std::vector<PRECISION>&, const std::vector<uint8_t>&, std::vector<PRECISION>&, const bool, const unsigned int, const unsigned int, const unsigned int, const unsigned int, const unsigned int, const unsigned int, FLB::OptionsCalculation*);
+  using initFieldsData = void(*)(std::vector<PRECISION>&, std::vector<PRECISION>&, const std::vector<PRECISION>&, const std::vector<uint8_t>&, std::vector<PRECISION>&, const bool, const unsigned int, const unsigned int, const unsigned int, const unsigned int, const unsigned int, const unsigned int, const unsigned int, const unsigned int, FLB::OptionsCalculation*);
   
   
   /**
@@ -88,52 +123,47 @@ namespace FLB
    *
    */
   template<typename PRECISION>
-  inline void initFields(std::vector<PRECISION>& h_f, std::vector<PRECISION>& h_u, const std::vector<PRECISION>& h_weights, const std::vector<uint8_t>& h_flags, std::vector<PRECISION>& h_rho, const bool is3D, const unsigned int numVelocities, const unsigned int idx, const  unsigned int x, const unsigned int y, const unsigned int z, const unsigned int h_N, FLB::OptionsCalculation* optionsCalculation)
+  inline void initFields(std::vector<PRECISION>& h_f, std::vector<PRECISION>& h_u, const std::vector<PRECISION>& h_weights, const std::vector<uint8_t>& h_flags, std::vector<PRECISION>& h_rho, const bool is3D, const unsigned int numVelocities, const unsigned int idx, const  unsigned int x, const unsigned int y, const unsigned int z, const unsigned int h_N, const unsigned int h_Nx, const unsigned int h_Ny, FLB::OptionsCalculation* optionsCalculation)
   {
     // Apply input boundary
-    if (x == 0 && h_flags[idx] == FLB::TypesNodes::INLET)
+    // TODO This must be better organized (only it is used the x velocity)
+    if (h_flags[idx] & FLB::TypesNodes::INLET) // fluid for periodic at the start of the simulation
     {
       h_u[idx] = optionsCalculation -> LBVelocity.x;
+      h_u[idx + h_N] = optionsCalculation -> LBVelocity.y; 
+  //if (idx == 0) std::cout <<optionsCalculation->SIVelocity.y<< " " << optionsCalculation->LBVelocity.x << " " << optionsCalculation->referenceVelocityLB  << " "<< h_u[idx]<<   " ZZZZZINIT\n";
     }
     else
     {
-      if (h_flags[idx] == FLB::TypesNodes::OUTLET) h_u[idx] = optionsCalculation -> LBVelocity.x;
+      if (h_flags[idx] & FLB::TypesNodes::OUTLET) h_u[idx] = 0; //optionsCalculation -> LBVelocity.x;
       else h_u[idx] = 0; // x value
+      h_u[idx + h_N] = 0; // y value
     }
-    h_u[idx + h_N] = 0; // y value
+    //h_u[idx + h_N] = 0; // y value
     if (is3D) h_u[idx + 2 * h_N] = 0; // z value
     // Init distribution function as a SoA for the GPU, to achive coalescense read
+    //if (h_flags[idx] & ~FLB::TypesNodes::WALL) h_u[idx] = optionsCalculation ->LBVelocity.x;
     double rho = 1.0; 
-    /*for (int i = 0; i < numVelocities; i++)
-    {
-      //int idx2 = (x + h_Nx * y + z * h_Nx * h_Ny) * numVelocities + i; 
-      //int idx2 = idx * numVelocities + i; 
-      //h_f[idx2] = h_weights[i];
-      //rho += h_weights[i];
-    }*/
 
     h_rho[idx] = rho;
 
-    if (optionsCalculation ->typeProblem == FLB::TypeProblem::FREE_SURFACE)
-    {
-
-    }
-
     // TODO Correct for 3D Analysis
-    initEquilibriumDDF2Q9(h_f, h_weights, h_u[idx], h_u[idx + h_N], rho, idx, h_N);
+    std::vector<uint32_t> neighborsIdx(9, 0);
+    calculateNeighborsIndexD2Q9(neighborsIdx, idx, h_Nx, h_Ny, x, y);
+    std::vector<PRECISION> localFeq(9, 0.0);
+    initEquilibriumDDF2Q9(localFeq, h_weights, h_u[idx], h_u[idx + h_N], rho, idx, h_N);
+    storef<PRECISION, 9>(idx, h_f, localFeq, neighborsIdx, 1,  h_N);
+  //if (idx == 0) std::cout <<optionsCalculation->SIVelocity.y<< " " << optionsCalculation->LBVelocity.y << " " << optionsCalculation->referenceVelocityLB  << " "<< h_u[idx]<<   " ZZZZZINIT\n";
+    if (idx == 602) //(idx == 4809)
+    {
+      printf("INIT idx = %d neighbor1 = %d neighbor2 = %d neighbor3 = %d neighbor4 = %d neighbor5 = %d neighbor6 = %d neighbor7 = %d neighbor8 = %d \n\n", idx, neighborsIdx[1], neighborsIdx[2], neighborsIdx[3], neighborsIdx[4], neighborsIdx[5], neighborsIdx[6], neighborsIdx[7], neighborsIdx[8]);
+    }
+    if (idx == 10102)
+    {
+      printf(" FLAG FLAG = %d\n", h_flags[idx]);
+    }
   };
 
-  /**
-   * @brief
-   *
-   */ 
-  void initFreeSurfaceFlags(std::vector<uint8_t>& h_flags, const bool is3D, const unsigned int numVelocities, const unsigned int idx, const  unsigned int x, const unsigned int y, const unsigned int z, const unsigned int h_Nx, const unsigned int h_Ny, const unsigned h_Nz);
-
-  /**
-   *
-   *
-   */
-  void calculateNeighborsIndexD2Q9(std::vector<uint32_t>& neighborsIdx, const unsigned int idx, const unsigned int h_Nx, const unsigned int h_Ny, const unsigned int x, const unsigned int y);
   
   template<typename PRECISION>
   using initFreeSurfaceFieldsData = void(*) (const std::vector<uint8_t>&, std::vector<PRECISION>&, std::vector<PRECISION>&, std::vector<PRECISION>&, const unsigned int);
@@ -178,8 +208,7 @@ namespace FLB
   /**
    * @brief initialization of the domain 
    *
-   * @param[in, out]  h_ux           velocity in the x direction
-   * @param[in, out]  h_uy           velocity in the y direction
+   * @param[in, out]  h_u           velocity in the x, y and z (only 3D) direction
    * @param[in, out]  h_Nx           Number of nodes in the x direction
    * @param[in, out]  h_Ny           Number of nodes in the y direction
    * @param[in]       numVelocities  Number of directions of velocities
@@ -187,7 +216,6 @@ namespace FLB
    * @param[in]       mesh           Mesh of the domain
    * @param[in, out]  h_f             probability density function of the particle
    * @param[in]       h_Nz           Number of nodes in the z direction. 1 default for 2D cases
-   * @param[in, out]  h_uz          velocity in the z direction. null pointer deafult for 2D cases
    */
   template<typename PRECISION, initFieldsData<PRECISION> initFieldsValues, initFreeSurfaceFieldsData<PRECISION> initFreeSurfaceFieldsValues>
   void initData(const unsigned int numVelocities, FLB::Mesh* mesh, std::vector<PRECISION>& h_f, std::vector<PRECISION>& h_u, const std::vector<PRECISION>& h_weights, std::vector<PRECISION>& h_rho, std::vector<PRECISION>& h_phi, std::vector<PRECISION>& h_mass, std::vector<PRECISION>& h_excessMass, FLB::OptionsCalculation* optionsCalculation = nullptr)
@@ -283,7 +311,7 @@ namespace FLB
 	  }
 
 	  // init fields when all the flags are indicated	
-	  initFieldsValues(h_f, h_u, h_weights, h_flags, h_rho, is3D, numVelocities, idx, x, y, z, countNodes, optionsCalculation);
+	  initFieldsValues(h_f, h_u, h_weights, h_flags, h_rho, is3D, numVelocities, idx, x, y, z, countNodes, h_Nx, h_Ny, optionsCalculation);
 	}
       }
     }
@@ -311,7 +339,7 @@ namespace FLB
   //};
 
   template<typename PRECISION>
-  inline void voidInitFields(std::vector<PRECISION>& h_f, std::vector<PRECISION>& h_u, const std::vector<PRECISION>& h_weights, const std::vector<uint8_t>& h_flags, std::vector<PRECISION>& h_rho, const bool is3D, const unsigned int numVelocities, const unsigned int idx, const unsigned int x, const unsigned int y, const unsigned int z, const unsigned int h_N, FLB::OptionsCalculation* optionsCalculation)
+  inline void voidInitFields(std::vector<PRECISION>& h_f, std::vector<PRECISION>& h_u, const std::vector<PRECISION>& h_weights, const std::vector<uint8_t>& h_flags, std::vector<PRECISION>& h_rho, const bool is3D, const unsigned int numVelocities, const unsigned int idx, const unsigned int x, const unsigned int y, const unsigned int z, const unsigned int h_N, const unsigned int h_Nx, const unsigned int h_Ny, FLB::OptionsCalculation* optionsCalculation)
   {
   };
   

@@ -78,13 +78,17 @@ std::unique_ptr<FLB::Texture2D> FLB::Renderer::s_FontTexture = nullptr;
 void FLB::Renderer::init(const FLB::OptionsCalculation& optionsCalc, Fl_Simple_Terminal* terminal, const FLB::Mesh* mesh)
 {
   // Shaders to use
-  s_RendererData.pointsXVelocityShader = FLB::Shader::create("assets/shaders/pointsXVelocity.glsl", optionsCalc.graphicsAPI, terminal);
-  s_RendererData.pointsYVelocityShader = FLB::Shader::create("assets/shaders/pointsYVelocity.glsl", optionsCalc.graphicsAPI, terminal);
-  s_RendererData.pointsMagVelocityShader = FLB::Shader::create("assets/shaders/pointsMagnitudeVelocity.glsl", optionsCalc.graphicsAPI, terminal);
-  
-  s_RendererData.textureXVelocity2DShader = FLB::Shader::create("assets/shaders/textureXVelocity2D.glsl", optionsCalc.graphicsAPI, terminal);
-  s_RendererData.textureYVelocity2DShader = FLB::Shader::create("assets/shaders/textureYVelocity2D.glsl", optionsCalc.graphicsAPI, terminal);
-  s_RendererData.textureMagVelocity2DShader = FLB::Shader::create("assets/shaders/textureMagnitudeVelocity2D.glsl", optionsCalc.graphicsAPI, terminal);
+  std::string basePath;
+  if (optionsCalc.typeProblem == FLB::TypeProblem::MONOFLUID) basePath = "assets/shaders/monoFluid/"; 
+  else if (optionsCalc.typeProblem == FLB::TypeProblem::FREE_SURFACE) basePath = "assets/shaders/freeSurface/";
+
+    s_RendererData.pointsXVelocityShader = FLB::Shader::create(basePath + "pointsXVelocity.glsl", optionsCalc.graphicsAPI, terminal);
+    s_RendererData.pointsYVelocityShader = FLB::Shader::create(basePath + "pointsYVelocity.glsl", optionsCalc.graphicsAPI, terminal);
+    s_RendererData.pointsMagVelocityShader = FLB::Shader::create(basePath + "pointsMagnitudeVelocity.glsl", optionsCalc.graphicsAPI, terminal);
+    
+    s_RendererData.textureXVelocity2DShader = FLB::Shader::create(basePath + "textureXVelocity2D.glsl", optionsCalc.graphicsAPI, terminal);
+    s_RendererData.textureYVelocity2DShader = FLB::Shader::create(basePath + "textureYVelocity2D.glsl", optionsCalc.graphicsAPI, terminal);
+    s_RendererData.textureMagVelocity2DShader = FLB::Shader::create(basePath + "textureMagnitudeVelocity2D.glsl", optionsCalc.graphicsAPI, terminal);
  
   s_RendererData.instancedArrowShader = FLB::Shader::create("assets/shaders/arrowInstancing.glsl", optionsCalc.graphicsAPI, terminal);
   
@@ -102,11 +106,11 @@ void FLB::Renderer::init(const FLB::OptionsCalculation& optionsCalc, Fl_Simple_T
   s_RendererData.shaderScalarVectorialFieldInUse = s_RendererData.pointsMagVelocityShader.get();
 
   
-  if (optionsCalc.typeAnalysis == 0) 
+  if (optionsCalc.typeAnalysis == 0) //2D 
   {
     createQuad(optionsCalc.graphicsAPI, terminal, mesh);
     s_RendererData.scalarVectorialFieldsTexture = FLB::Texture2D::create(optionsCalc.graphicsAPI, mesh -> getNx() , mesh -> getNy(), FLB::ImageFormat::RG32F);
-    s_RendererData.textureIsosurfaceShader = FLB::Shader::create("assets/shaders/textureIsosurface2D.glsl", optionsCalc.graphicsAPI, terminal);
+    s_RendererData.textureIsosurfaceShader = FLB::Shader::create(basePath + "textureIsosurface2D.glsl", optionsCalc.graphicsAPI, terminal);
   }
 
   s_RendererData.maxMinCoordDomain = {mesh -> getxMax(), mesh -> getyMax(), mesh -> getxMin(), mesh -> getyMin()};

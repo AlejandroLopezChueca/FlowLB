@@ -24,8 +24,8 @@ void FLB::ScalarFieldData<T>::writeData(std::ofstream &ofs)
 
   for (unsigned int idx = 0; idx < m_NumPoints; ++idx)
   {
-    // use of + to convert uchar to number
-    ofs << +m_DataField[idx];
+    // use of + to convert uchar to number (case of the flags)
+    ofs << +m_DataField[idx] * m_ConstantToSI;
     ofs << "\n";
   }
   ofs << "</DataArray>\n";
@@ -48,17 +48,17 @@ void FLB::VectorFieldData<T>::writeData(std::ofstream &ofs)
   { 
     for (unsigned int idx = 0; idx < m_NumPoints; idx++)
     {
-      ofs << m_DataField[idx] << " "; // x
-      ofs << m_DataField[idx + m_NumPoints] * constantChangeYSign<< "\n"; // y
+      ofs << m_DataField[idx] * m_ConstantToSI << " "; // x
+      ofs << m_DataField[idx + m_NumPoints] * m_ConstantToSI * constantChangeYSign << "\n"; // y
     }
   }
   else if (m_NumberComponents == 3)
   {
     for (unsigned int idx = 0; idx < m_NumPoints; idx++)
     {
-      ofs << m_DataField[idx] << " ";
-      ofs << m_DataField[idx + m_NumPoints] * constantChangeYSign << " ";
-      ofs << m_DataField[idx + 2 * m_NumPoints] << "\n";
+      ofs << m_DataField[idx] * m_ConstantToSI << " ";
+      ofs << m_DataField[idx + m_NumPoints] * m_ConstantToSI * constantChangeYSign << " ";
+      ofs << m_DataField[idx + 2 * m_NumPoints] * m_ConstantToSI << "\n";
     }
 
   }

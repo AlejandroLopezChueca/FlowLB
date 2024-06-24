@@ -7,20 +7,23 @@ CALCULATION_API = CUDA
 CUDA_BLOCK_SIZE = (16,16,0)
 
 # API to render the results in real time (OPENGL or NONE). If it is NONE, there is no render
-GRAPHICS_API = OPENGL
+GRAPHICS_API = NONE
 
 # Type problem, It can be with only one fluid (MONOFLUID) or a free surface problem (FREE_SURFACE) with two fluids, where
 # only one fluid affects the dynamics of the problem because it is orders of magnitude heavier (heavy fluid)
 TYPE_PROBLEM = MONOFLUID
 
-# Consider gravity in the y direction
-GRAVITY = FALSE
+# Use Volumetric forces. It can by using acceleration (m/s) or using directly a volumetric force (Newton/m3 or Newton/m2 per m in 2D).
+# If a value other than 0 is indicated in the acceleration, this takes precedence over the value of the volumetric force, allowing both to be combined.
+USE_VOLUMETRIC_FORCE = FALSE
+ACCELERATION =  (0, 0, 0) // y value positive is upwards
+VOLUMETRIC_FORCE = (0.3334,0,0)
 
 # Collision operator. SRT or TRT
-COLLISION_OPERATOR = TRT
+COLLISION_OPERATOR = SRT
 
 # Smagorinsky subgrid model
-SUBGRID_TURBULENCE_MODEL = TRUE
+SUBGRID_TURBULENCE_MODEL = FALSE
 
 # Calculate surface tension in the interface. Only used if the problem is Free Surface
 SURFACE_TENSION = FALSE
@@ -28,22 +31,23 @@ SURFACE_TENSION = FALSE
 # PRECISION OF THE CALCULATION. 32 bits or 64 bits
 PRECISION = 32
 
-# Reference velocity. This value is used for the conversion to the lattice units
-# The default value is 0.1, but for stability purposes it can be necessary to be lower
-REFERENCE_VELOCITY = 0.1
+# Reference velocity. This values are used for the conversion to the lattice units from SI units
+# The default value of LB is 0.1, but for stability purposes it can be necessary to be lower
+REFERENCE_VELOCITY_LB = 0.1
+REFERENCE_VELOCITY_SI = 10.0 # m/s
 
 # Input values. It can be a flow (m3/s) or velocity (m/s)
 #FLOW = 1
-VELOCITY = (1, 0, 0)
+VELOCITY = (0, 1, 0)
 
-KINEMATIC_VISCOSITY = 1.48e-5 #m2/s
-DENSITY = 1.225 #kg/m3
+KINEMATIC_VISCOSITY = 0.01 #m2/s
+DENSITY = 1 #kg/m3
 
 # BOUNDARY CONDITIONS
 # The boundary conditions can be
-LEFT_BOUNDARY = WALL
+LEFT_BOUNDARY = INPUT
 RIGHT_BOUNDARY = WALL
-UP_BOUNDARY = INPUT
+UP_BOUNDARY = WALL
 DOWN_BOUNDARY = WALL
 
 # INITIAL CONDITIONS
@@ -56,11 +60,11 @@ DOWN_BOUNDARY = WALL
 #INITIAL_CONDITION_FLAG(1).zWidth = 0.2 # Only used in 3D
 
 # Time of the simulation in seconds
-TIME_SIMULATION = 10
+TIME_SIMULATION = 2
 
 # SAVE OPTIONS
 # Interval to save the data in seconds
-TIME_SAVE = 5
+TIME_SAVE = 0.5
 
 
 

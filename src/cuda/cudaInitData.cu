@@ -4,6 +4,7 @@
 #include <iterator>
 #include "cudaInitData.cuh"
 #include "cudaUtils.cuh"
+#include "math/math.h"
 
 
 template __constant__ int FLB::d_cx<9>[9];
@@ -24,23 +25,25 @@ __constant__ uint8_t FLB::d_collisionOperator;
 __constant__ uint8_t FLB::CT_FLUID = 1 << 0;        // 0000 0001
 __constant__ uint8_t FLB::CT_GAS = 1 << 1;          // 0000 0010
 __constant__ uint8_t FLB::CT_INTERFACE = 1 << 2;    // 0000 0100
+__constant__ uint8_t FLB::CT_FLUID_GAS_INTERFACE = 0x7;  // 0000 0111
 __constant__ uint8_t FLB::CT_WALL = 1 << 3;         // 0000 1000  Static wall
 __constant__ uint8_t FLB::CT_MWALL = 1 << 4;        // 0001 0000 Moving wall
-__constant__ uint8_t FLB::CT_INLET = 1 << 5;         // 0010  0000 Input or Output
-__constant__ uint8_t FLB::CT_OUTLET = 1 << 6;         // 0100  0000 Input or Output
+__constant__ uint8_t FLB::CT_INLET = 1 << 5;        // 0010 0000
+__constant__ uint8_t FLB::CT_OUTLET = 1 << 6;       // 0100 0000
+__constant__ uint8_t FLB::CT_INLET_FLUID = 0x21;    // 0010 0001
 __constant__ uint8_t FLB::CT_INTERFACE_FLUID = 0x5; // 0000 0101
 __constant__ uint8_t FLB::CT_INTERFACE_GAS = 0x6;   // 0000 0110
 //__constant__ uint8_t FLB::CT_FLUID_INLET =;   // 0000 0110
 //__constant__ uint8_t FLB::CT_FLUID_OUTLET =;   // 0000 0110
 //__constant__ uint8_t FLB::CT_GAS_OUTLET =;   // 0000 0110
-__constant__ uint8_t FLB::CT_GAS_INTERFACE = 0xff;  // 1111 1111
+__constant__ uint8_t FLB::CT_GAS_INTERFACE = 1<<7;  // 1000 0000
 
 // constant variables
 //__constant__ float FLB::d_g;
 __constant__ float FLB::d_invTau;
 
 // Use of grvity in the simulation
-__constant__ bool FLB::d_useGravity;
+__constant__ bool FLB::d_useVolumetricForce;
 
 // Use subgrid model for turbulence in the simulation
 __constant__ bool FLB::d_useSubgridModel;
@@ -55,22 +58,33 @@ template<typename PRECISION>
 void FLB::h_initConstantDataCuda2D(FLB::OptionsCalculation& optionsCalc, PRECISION* h_weights, unsigned int h_Nx, unsigned int h_Ny, unsigned int h_N, FLB::Units& unitsConverter)
 {
   uint8_t h_collisionOperator = optionsCalc.collisionOperator;
-  float h_g = unitsConverter.gToLatticeUnits(optionsCalc.gravity);
-  float h_nu = unitsConverter.nuToLatticeUnits(optionsCalc.kinematicViscosity);
-  float h_Fy = optionsCalc.useGravity ? unitsConverter.calculateVolumeForceLatticeUnits(optionsCalc.gravity, optionsCalc.density) : 0.0f;
-  float h_Fx = 0.0f;
+  bool optionsHasRelaxationTime = FLB::Math::essentiallyEqual<double>(optionsCalc.relaxationTime, 0.0, 1e-6) ? false : true;
+  float h_nu = optionsHasRelaxationTime ? unitsConverter.nuLatticeUnitsFromRelaxationTime(optionsCalc.relaxationTime) : unitsConverter.nuToLatticeUnits(optionsCalc.kinematicViscosity);
+
+  //std::cout << unitsConverter.lenghtToLatticeUnits(0.2f) << " " << h_nu <<" "<< unitsConverter.velocitySIToVelocityLB(optionsCalc.SIVelocity).x <<" KINEMA " << optionsCalc.kinematicViscosity <<" RE\n";
+
+  float h_Fy = 0.0f, h_Fx = 0.0f;
+  // If a value other than 0 is indicated in the acceleration, this takes precedence over the value of the volumetric force,
+  if (optionsCalc.useVolumetricForce)
+  {
+    h_Fx = FLB::Math::essentiallyEqual<double>(optionsCalc.acceleration.x, 0.0, 1e-6) ?  unitsConverter.volumeForceToLatticeUnits(optionsCalc.volumetricForce.x) : unitsConverter.volumeForceToLatticeUnits(optionsCalc.acceleration.x, optionsCalc.density);
+    h_Fy = FLB::Math::essentiallyEqual<double>(optionsCalc.acceleration.y, 0.0, 1e-6) ?  unitsConverter.volumeForceToLatticeUnits(optionsCalc.volumetricForce.y) : unitsConverter.volumeForceToLatticeUnits(optionsCalc.acceleration.y, optionsCalc.density);
+  }
 
   // Lattice velocities
-  int h_cx[9] = {0, 1, -1, 0,  0, 1, -1, -1,  1};
-  int h_cy[9] = {0, 0,  0, 1, -1, 1, -1,  1, -1};
+  //int h_cx[9] = {0, 1, -1, 0,  0, 1, -1, -1,  1};
+  int h_cx[9] = {0, 1, -1, 0,  0, 1, -1,  1, -1};
+  //int h_cy[9] = {0, 0,  0, 1, -1, 1, -1,  1, -1};
+  int h_cy[9] = {0, 0,  0, 1, -1, 1, -1, -1,  1};
 
   //relaxation time
-  float h_tau = 3.0 * h_nu + 0.5f; 
+  float h_tau = optionsHasRelaxationTime ? optionsCalc.relaxationTime : 3.0f * h_nu + 0.5f;
   float h_invTau = 1.0f/h_tau;
+  std::cout << h_tau << " TAU " << h_invTau << " INVTAU\n";
+  std::cout << h_Fx << " FORCE " << optionsCalc.volumetricForce.x << " FORCE\n";
 
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_cx<9>, &h_cx, 9*sizeof(int), 0, cudaMemcpyHostToDevice));
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_cy<9>, &h_cy, 9*sizeof(int), 0, cudaMemcpyHostToDevice)); 
-  //checkCudaErrors(cudaMemcpyToSymbol(FLB::d_g, &h_g, sizeof(float), 0, cudaMemcpyHostToDevice));
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_invTau, &h_invTau, sizeof(float), 0, cudaMemcpyHostToDevice));
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_Nx, &h_Nx, sizeof(unsigned int), 0, cudaMemcpyHostToDevice));
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_Ny, &h_Ny, sizeof(unsigned int), 0, cudaMemcpyHostToDevice));
@@ -83,13 +97,13 @@ void FLB::h_initConstantDataCuda2D(FLB::OptionsCalculation& optionsCalc, PRECISI
   }
   else if (optionsCalc.precision == 64)
   {
-checkCudaErrors(cudaMemcpyToSymbol(FLB::d_weights<double, 9>, &h_weights, 9*sizeof(double), 0, cudaMemcpyHostToDevice));
+checkCudaErrors(cudaMemcpyToSymbol(FLB::d_weights<double, 9>, h_weights, 9*sizeof(double), 0, cudaMemcpyHostToDevice));
   }
   
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_Fx, &h_Fx, sizeof(float), 0, cudaMemcpyHostToDevice));
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_Fy, &h_Fy, sizeof(float), 0, cudaMemcpyHostToDevice));
 
-  checkCudaErrors(cudaMemcpyToSymbol(FLB::d_useGravity, &optionsCalc.useGravity, sizeof(bool), 0, cudaMemcpyHostToDevice));
+  checkCudaErrors(cudaMemcpyToSymbol(FLB::d_useVolumetricForce, &optionsCalc.useVolumetricForce, sizeof(bool), 0, cudaMemcpyHostToDevice));
   checkCudaErrors(cudaMemcpyToSymbol(FLB::d_useSubgridModel, &optionsCalc.useSubgridModel, sizeof(bool), 0, cudaMemcpyHostToDevice));
 }
 

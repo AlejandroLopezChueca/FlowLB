@@ -10,7 +10,7 @@ TYPE_DOMAIN = 2D
 # If it is a 2D problem the coordinate z must be 0
 
 POINT(1) = (0, 0, 0)
-POINT(2) = (20, 0, 0)
+POINT(2) = (15, 0, 0)
 #POINT(3) = (1, -0.2, 0)
 
 
@@ -30,7 +30,7 @@ CDW(1).height = 1
 CDW(1).width = 1 
 
 # Radius in meters. Only used when the shape is CIRCLE
-CDW(1).radius = 3
+CDW(1).radius = 2.5
 
 # Separation between CDW in meters. It is the distance between consecutive centers (Only used in 3D)
 SEPARATION = 2

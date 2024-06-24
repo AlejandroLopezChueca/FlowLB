@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <iostream>
 
 
 namespace FLB 
@@ -30,6 +31,8 @@ namespace FLB
   extern __constant__ uint8_t CT_FLUID; 
   extern __constant__ uint8_t CT_GAS;
   extern __constant__ uint8_t CT_INTERFACE;
+  extern __constant__ uint8_t CT_FLUID_GAS_INTERFACE;
+  extern __constant__ uint8_t CT_INLET_FLUID;
   extern __constant__ uint8_t CT_INTERFACE_FLUID; // Convert interface to fluid
   extern __constant__ uint8_t CT_INTERFACE_GAS; // Convert interface to gas
   extern __constant__ uint8_t CT_GAS_INTERFACE; // Convert gas to interface
@@ -54,8 +57,8 @@ namespace FLB
   // Type of collision operator -> 0 (SRT), 1(TRT)
   extern __constant__ uint8_t d_collisionOperator;
   
-  // Use of grvity in the simulation
-  extern __constant__ bool d_useGravity;
+  // Use of volumetric forces in the simulation
+  extern __constant__ bool d_useVolumetricForce;
   
   // Use subgrid model for turbulence in the simulation
   extern __constant__ bool d_useSubgridModel;
@@ -114,11 +117,10 @@ namespace FLB
       checkCudaErrors(cudaMemcpy(*d_mass, h_mass, fieldSize, cudaMemcpyHostToDevice)); 
       
       checkCudaErrors(cudaMalloc((void **)d_excessMass, fieldSize));
-      checkCudaErrors(cudaMemcpy(*d_mass, h_excessMass, fieldSize, cudaMemcpyHostToDevice)); 
+      checkCudaErrors(cudaMemcpy(*d_excessMass, h_excessMass, fieldSize, cudaMemcpyHostToDevice)); 
       
       checkCudaErrors(cudaMalloc((void **)d_phi, fieldSize));
-      checkCudaErrors(cudaMemcpy(*d_mass, h_phi, fieldSize, cudaMemcpyHostToDevice)); 
-      
+      checkCudaErrors(cudaMemcpy(*d_phi, h_phi, fieldSize, cudaMemcpyHostToDevice)); 
     }
   }
 

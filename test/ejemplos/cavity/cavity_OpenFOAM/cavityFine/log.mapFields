@@ -1,0 +1,41 @@
+/*---------------------------------------------------------------------------*\
+| =========                 |                                                 |
+| \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox           |
+|  \\    /   O peration     | Version:  2206                                  |
+|   \\  /    A nd           | Website:  www.openfoam.com                      |
+|    \\/     M anipulation  |                                                 |
+\*---------------------------------------------------------------------------*/
+Build  : _8993af73-20221106 OPENFOAM=2206 patch=221104 version=2206
+Arch   : "LSB;label=32;scalar=64"
+Exec   : mapFields cavity -case cavityFine -sourceTime latestTime -consistent
+Date   : May 27 2024
+Time   : 23:01:05
+Host   : alejandrolopez
+PID    : 688543
+I/O    : uncollated
+Case   : /home/alejandro_lopez/Projects/FlowLB/test/ejemplos/cavity/cavity_OpenFOAM/cavityFine
+nProcs : 1
+trapFpe: Floating point exception trapping enabled (FOAM_SIGFPE).
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 5, maxFileModificationPolls 20)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Source: "/home/alejandro_lopez/Projects/FlowLB/test/ejemplos/cavity/cavity_OpenFOAM" "cavity"
+Target: "/home/alejandro_lopez/Projects/FlowLB/test/ejemplos/cavity/cavity_OpenFOAM" "cavityFine"
+
+Create databases as time
+
+Source time: 0.5
+Target time: 0.5
+Create meshes
+
+Source mesh size: 400	Target mesh size: 1681
+
+
+Consistently creating and mapping fields for time 0.5
+
+    interpolating p
+    interpolating U
+
+End
+

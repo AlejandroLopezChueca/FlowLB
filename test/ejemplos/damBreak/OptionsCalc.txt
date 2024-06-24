@@ -1,0 +1,75 @@
+# Type Analysis
+TYPE_ANALYSIS = 2D
+
+#API to perform the calculation. Only available CUDA
+CALCULATION_API = CUDA
+
+CUDA_BLOCK_SIZE = (16,16,0)
+
+# API to render the results in real time (OPENGL or NONE). If it is NONE, there is no render
+GRAPHICS_API = OPENGL
+
+# Type problem, It can be with only one fluid (MONOFLUID) or a free surface problem (FREE_SURFACE) with two fluids, where
+# only one fluid affects the dynamics of the problem because it is orders of magnitude heavier (heavy fluid)
+TYPE_PROBLEM = FREE_SURFACE
+
+# Use Volumetric forces. It can by using acceleration (m/s) or using directly a volumetric force (Newton/m3 or Newton/m2 per m in 2D).
+# If a value other than 0 is indicated in the acceleration, this takes precedence over the value of the volumetric force, allowing both to be combined.
+USE_VOLUMETRIC_FORCE = TRUE
+ACCELERATION =  (0, -9.80665, 0) // y value positive is downwards
+VOLUMETRIC_FORCE = (0,0,0)
+
+# Collision operator. SRT or TRT
+COLLISION_OPERATOR = SRT
+
+# Smagorinsky subgrid model
+SUBGRID_TURBULENCE_MODEL = TRUE
+
+# Calculate surface tension in the interface. Only used if the problem is Free Surface
+SURFACE_TENSION = FALSE
+
+# PRECISION OF THE CALCULATION. 32 bits or 64 bits
+PRECISION = 32
+
+# Reference velocity. This values are used for the conversion to the lattice units from SI units
+# The default value of LB is 0.1, but for stability purposes it can be necessary to be lower
+REFERENCE_VELOCITY_LB = 0.1
+REFERENCE_VELOCITY_SI = 10.0 # m/s
+
+# Input values. It can be a flow (m3/s) or velocity (m/s)
+#FLOW = 1
+VELOCITY = (1, 0, 0)
+
+KINEMATIC_VISCOSITY = 1.0e-6 #m2/s
+DENSITY = 1000 #kg/m3
+
+# BOUNDARY CONDITIONS
+# The boundary conditions can be
+LEFT_BOUNDARY = WALL
+RIGHT_BOUNDARY = WALL
+UP_BOUNDARY = WALL
+DOWN_BOUNDARY = WALL
+
+# INITIAL CONDITIONS
+# Optional. This can be use to initialize internally some areas with fluid
+
+INITIAL_CONDITION_FLAG(1).type = CUBE
+INITIAL_CONDITION_FLAG(1).position = (0.2, 0.35, 0) # x, y, z (meters) of geometric center
+INITIAL_CONDITION_FLAG(1).height = 0.8 # in direction y
+INITIAL_CONDITION_FLAG(1).xWidth = 0.2
+INITIAL_CONDITION_FLAG(1).zWidth = 0.2 # Only used in 3D
+
+#INITIAL_CONDITION_FLAG(1).type = CSV_2D # csv of a 2D shape
+#INITIAL_CONDITION_FLAG(1).name = plenum # it is not necessary the extension .csv 
+#INITIAL_CONDITION_FLAG(1).position = (2, 10, 0) # x, y, z (meters) of geometric center
+#INITIAL_CONDITION_FLAG(1).rotation = (0, 0, 0) # Around its geometric center in Sexadecimal degrees and anticlockwise
+
+# Time of the simulation in seconds
+TIME_SIMULATION = 15
+
+# SAVE OPTIONS
+# Interval to save the data in seconds
+TIME_SAVE = 0.1
+
+
+

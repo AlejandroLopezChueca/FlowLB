@@ -15,9 +15,10 @@ namespace FLB
     */
   template<typename PRECISION, int NUMVELOCITIES>
   __device__ void calculateDensity(const PRECISION* localf, PRECISION& localRho)
-  { 
-    localRho = localf[0];
-    for (int i = 1; i < NUMVELOCITIES; i++) localRho += localf[i];
+  {
+    PRECISION rho = localf[0];
+    for (int i = 1; i < NUMVELOCITIES; i++) rho += localf[i];
+    localRho = rho;
   }
 
   /**
@@ -44,11 +45,10 @@ namespace FLB
     localFeq[2] = rhow14 * (1.0f - localUx - 0.5f * u2 + 0.5f * localUx * localUx);
     localFeq[3] = rhow14 * (1.0f + localUy - 0.5f * u2 + 0.5f * localUy * localUy);
     localFeq[4] = rhow14 * (1.0f - localUy - 0.5f * u2 + 0.5f * localUy * localUy);
-    localFeq[5] = rhow58 * (1.0f + u1   - 0.5f * u2 + 0.5f * u1 * u1);
-    localFeq[6] = rhow58 * (1.0f - u1   - 0.5f * u2 + 0.5f * u1 * u1);
-    localFeq[7] = rhow58 * (1.0f + u0   - 0.5f * u2 + 0.5f * u0 * u0);
-    localFeq[8] = rhow58 * (1.0f - u0   - 0.5f * u2 + 0.5f * u0 * u0);
-    //printf("feq0 = %6.4f feq1 = %6.4f feq2 = %6.4f feq3 = %6.4f\n", d_feq[0], d_feq[1], d_feq[2], d_feq[3]);
+    localFeq[5] = rhow58 * (1.0f + u1 - 0.5f * u2 + 0.5f * u1 * u1);
+    localFeq[6] = rhow58 * (1.0f - u1 - 0.5f * u2 + 0.5f * u1 * u1);
+    localFeq[7] = rhow58 * (1.0f + u0 - 0.5f * u2 + 0.5f * u0 * u0);
+    localFeq[8] = rhow58 * (1.0f - u0 - 0.5f * u2 + 0.5f * u0 * u0);
   }
 
   /**
@@ -62,13 +62,13 @@ namespace FLB
     * @param[in]
     */
   template<typename PRECISION>
-  __device__ void calculateForcingTerms2D(PRECISION* d_Fi, PRECISION localUx, PRECISION localUy)
+  __device__ void calculateForcingTerms2D(PRECISION* localFi, PRECISION localUx, PRECISION localUy)
   {
     const PRECISION uF = -0.33333334f * (localUx * FLB::d_Fx + localUy * FLB::d_Fy);
-    d_Fi[0] = 9.0f * FLB::d_weights<PRECISION, 9>[0] * uF;
+    localFi[0] = 9.0f * FLB::d_weights<PRECISION, 9>[0] * uF;
     for (int i = 1; i < 9; i++)
     {
-      d_Fi[1] = 9.0f * FLB::d_weights<PRECISION, 9>[i] * ((FLB::d_cx<9>[i] * FLB::d_Fx + FLB::d_cy<9>[i] * FLB::d_Fy) * (FLB::d_cx<9>[i] * localUx + FLB::d_cy<9>[i] * localUy + 0.33333334f) + uF);
+      localFi[i] = 9.0f * FLB::d_weights<PRECISION, 9>[i] * ((FLB::d_cx<9>[i] * FLB::d_Fx + FLB::d_cy<9>[i] * FLB::d_Fy) * (FLB::d_cx<9>[i] * localUx + FLB::d_cy<9>[i] * localUy + 0.33333334f) + uF);
     }
   }
 
@@ -91,8 +91,10 @@ namespace FLB
        */
     // The index are calculated for a periodic boundary by default
     const unsigned int yCenter = y * FLB::d_Nx;
-    const unsigned int yUp = ((y + FLB::d_Ny - 1u) % FLB::d_Ny) * FLB::d_Nx;
-    const unsigned int yDown = ((y + 1u) % FLB::d_Ny) * FLB::d_Nx;
+    //const unsigned int yUp = ((y + FLB::d_Ny - 1u) % FLB::d_Ny) * FLB::d_Nx;
+    const unsigned int yUp = ((y + 1u) % FLB::d_Ny) * FLB::d_Nx;
+    const unsigned int yDown = ((y + FLB::d_Ny - 1u) % FLB::d_Ny) * FLB::d_Nx;
+    //const unsigned int yDown = ((y + 1u) % FLB::d_Ny) * FLB::d_Nx;
     const unsigned int xRight = (x + 1u) % FLB::d_Nx;
     const unsigned int xLeft = (x + FLB::d_Nx - 1u) % FLB::d_Nx;
     neighborsIdx[0] = idx; //Own cell 
@@ -120,60 +122,55 @@ namespace FLB
     * @param[in]       neighborsIdx  Indexes of the neighbors nodes
     */
   template<typename PRECISION, int NUMVELOCITIES>
-  __device__ void calculateAverageValuesNeigbors2D(const unsigned int idx, uint8_t* d_flags, PRECISION& rhol, PRECISION& uxl, PRECISION& uyl, PRECISION* d_rho, PRECISION* d_u, const unsigned int* neighborsIdx)
+  __device__ void calculateAverageValuesNeighbors2D(const unsigned int idx, uint8_t* d_flags, PRECISION& rhol, PRECISION& uxl, PRECISION& uyl, PRECISION* d_rho, PRECISION* d_u, const unsigned int* neighborsIdx)
     {
-      float count = 0.0f;
+      float count = 0.0f, localRho = 0.0f, localUx = 0.0f, localUy = 0.0f;
       const unsigned int numberNodes = FLB::d_N;
 
       for (int i = 1; i < NUMVELOCITIES; i++)
       {
-	const uint8_t d_neighborFlag = d_flags[neighborsIdx[i]]; //neighbor flag
-	if (d_neighborFlag == FLB::CT_FLUID || d_neighborFlag == FLB::CT_INTERFACE || d_neighborFlag == FLB::CT_INTERFACE_FLUID)
+	const uint8_t neighborFlag = d_flags[neighborsIdx[i]]; //neighbor flag
+	//if (neighborFlag == FLB::CT_FLUID || neighborFlag == FLB::CT_INTERFACE || neighborFlag == FLB::CT_INTERFACE_FLUID)
+	if (neighborFlag & FLB::CT_INTERFACE_FLUID) // if the neighbor is fluid, interface or interface_fluid
 	{
 	  count += 1.0f;
-	  rhol += d_rho[idx];
-	  uxl += d_u[idx];
-	  uxl += d_u[idx + numberNodes];
-	}	
+	  localRho += d_rho[neighborsIdx[i]];
+	  localUx += d_u[neighborsIdx[i]];
+	  localUy += d_u[neighborsIdx[i] + numberNodes];
+	}
       }
-      rhol = count > 0.0f ? rhol/count : 0.0f;
-      uxl = count > 0.0f ? uxl/count : 0.0f;
-      uyl = count > 0.0f ? uyl/count : 0.0f;
+      rhol = count > 0.0f ? localRho/count : 0.0f;
+      uxl = count > 0.0f ? localUx/count : 0.0f;
+      uyl = count > 0.0f ? localUy/count : 0.0f;
     }
 
   /**
     * @brief Calculate the fill level of local node when is interface or it is going to be interface
     * 
-    * @param[in]   d_excessMassl  Excess mass of the local node
-    * @param[in]   d_rhol         Local density
-    * @param[out]  d_phil         Local fill level
+    * @param[in]   localMass    mass of the local node
+    * @param[in]   localRho     Local density
     */
   template<typename PRECISION>
-  __device__ PRECISION calculatePhi(PRECISION d_excessMassl, PRECISION d_rhol)
+  __device__ PRECISION calculatePhi(const PRECISION localMass, const PRECISION localRho)
   {
-    // TODO 
-    //if (d_rhol > 0.0f)
-    {
-      PRECISION d_phil = d_excessMassl/d_rhol;
-      if (d_phil > 0.0f) return d_phil < 1.0f ? d_phil : 1.0f;  
-      else return 0.0f;
-    }
+    if (localRho > 0.0f) return __saturatef(localMass/localRho); // clamp to [0.0, 1.0]
+    else return 0.5f;
   }
 
   /**
     * @brief Calculate local velocities for a cell
     *
-    * @param[in]       d_localf  Local distribution function
-    * @param[in]       d_rhol    Local density
-    * @param[in, out]  d_uxl     Local velocity in x direction
-    * @param[in, out]  d_uyl     Local velocity in y direction  
+    * @param[in]       localf  Local distribution function
+    * @param[in]       rhol    Local density
+    * @param[in, out]  uxl     Local velocity in x direction
+    * @param[in, out]  uyl     Local velocity in y direction  
     */
   template<typename PRECISION>
-  __device__ void calculateVelocityD2Q9(const PRECISION* d_localf, const PRECISION d_rhol, PRECISION& d_uxl, PRECISION& d_uyl)
+  __device__ void calculateVelocityD2Q9(const PRECISION* localf, const PRECISION rhol, PRECISION& uxl, PRECISION& uyl)
   {
-    // Alternating to reduce absolute values of intermediate sum and achive better precision
-    d_uxl = (d_localf[1] - d_localf[2] + d_localf[5] - d_localf[8] + d_localf[7] - d_localf[6]) / d_rhol;
-    d_uyl = (d_localf[3] - d_localf[4] + d_localf[5] - d_localf[7] + d_localf[8] - d_localf[6]) / d_rhol;
+    // Alternating to reduce absolute values of intermediate sum and achieve better precision
+    uxl = (localf[1] - localf[2] + localf[5] - localf[6] + localf[7] - localf[8]) / rhol;
+    uyl = (localf[3] - localf[4] + localf[5] - localf[6] + localf[8] - localf[7]) / rhol;
   }
 
   /**
@@ -186,14 +183,15 @@ namespace FLB
     * @param[in]       t              Lattice time 
     */
   template<typename PRECISION, int NUMVELOCITIES>
-  __device__ void loadf(const unsigned int idx, const PRECISION* d_f, PRECISION* d_localf, const unsigned int* neighborsIdx, const unsigned long int t)
+  __device__ void loadf(const unsigned int idx, const PRECISION* d_f, PRECISION* localf, const unsigned int* neighborsIdx, const unsigned long int t)
   { 
     // Esoteric pull
-    d_localf[0] = d_f[idx]; 
+    localf[0] = d_f[idx]; 
     for (int i = 1; i < NUMVELOCITIES; i += 2)
     {
-      d_localf[i]     = d_f[idx + FLB::d_N * (t%2ul ? i + 1 : i)]; // ternary operator to distinguis beetween odd and even time step
-      d_localf[i + 1] = d_f[neighborsIdx[i] + FLB::d_N * (t%2ul ? i : i + 1)];
+      localf[i]     = d_f[idx + FLB::d_N * (t%2ul ? i : i + 1)]; // ternary operator to distinguis beetween odd and even time step
+      localf[i + 1] = d_f[neighborsIdx[i] + FLB::d_N * (t%2ul ? i + 1 : i)];
+      //if (idx == 4809 && (t== 0 || t == 1)) printf("i = %d, localF i + 1 = %6.4f i = %d neighbor = %d\n", i, localf[i+1], t%2?i:i+1, neighborsIdx[i]);
     }
   }
 
@@ -209,10 +207,12 @@ namespace FLB
   template<typename PRECISION, int NUMVELOCITIES>
   __device__ void loadOutgoingf(const unsigned int idx, PRECISION* d_f, PRECISION* d_outgoingLocalf, const unsigned int* neighborsIdx, const unsigned long int t)
   { // esoteric pull
-    for (int i = 1; i < NUMVELOCITIES; i +=2)
+    // TODO correct index
+    for (int i = 1; i < NUMVELOCITIES; i += 2)
     {
-      d_outgoingLocalf[i]     = d_f[neighborsIdx[i] + FLB::d_N * (t%2ul ? i +1 : i)];
-      d_outgoingLocalf[i + 1] = d_f[idx + FLB::d_N * (t%2ul ? i : i + 1)];
+      d_outgoingLocalf[i]     = d_f[neighborsIdx[i] + FLB::d_N * (t%2ul ? i : i + 1)];
+      d_outgoingLocalf[i + 1] = d_f[idx + FLB::d_N * (t%2ul ? i + 1: i)];
+      //if (idx == 43) printf("INCO2 f1 = %6.4f f2 = %6.4f, nei = %d\n", d_outgoingLocalf[i], d_outgoingLocalf[i+1], neighborsIdx[i]);
     }
   }
 
@@ -221,23 +221,20 @@ namespace FLB
     *
     * @param[in]       idx            Index of the cell
     * @param[in, out]  d_f            General particle dstribution function
-    * @param[in]       d_localf       Local particle distribution function to the cell
+    * @param[in]       localf         Local particle distribution function to the cell
     * @param[in]       neighborsIdx   Neighbors Indices
     * @param[in]       t              Lattice time 
     */ 
   template<typename PRECISION, int NUMVELOCITIES>
-  __device__ void storef(const unsigned int idx, PRECISION* d_f, const PRECISION* d_localf, const unsigned int* neighborsIdx, const unsigned long int t)
+  __device__ void storef(const unsigned int idx, PRECISION* d_f, const PRECISION* localf, const unsigned int* neighborsIdx, const unsigned long int t)
   {
     // esoteric pull
-    d_f[idx] = d_localf[0];
+    d_f[idx] = localf[0];
     for (int i = 1; i < NUMVELOCITIES; i += 2)
     {
-      d_f[neighborsIdx[i] + FLB::d_N * (t%2ul ? i : i + 1)] = d_localf[i]; 
-      d_f[idx + FLB::d_N * (t%2ul ? i + 1 : i)] = d_localf[i + 1];
-      
-      //printf("LOCAL_FFFFF = %6.4f LOCAL_F2 = %6.4f idx = %d i = %d\n", d_localf[i], d_localf[i+1], idx, i);
+      d_f[neighborsIdx[i] + FLB::d_N * (t%2ul ? i + 1 : i)] = localf[i]; 
+      d_f[idx + FLB::d_N * (t%2ul ? i : i + 1)] = localf[i + 1]; 
     }
-    //printf("LOCAL_F0 = %6.4f idx = %d \n", d_localf[0], idx);
   }
 
   /**
@@ -245,18 +242,19 @@ namespace FLB
     *
     * @param[in]       idx               Index of the node
     * @param[in, out]  d_f               General particle dstribution function
-    * @param[in]       d_incomingLocalf  Particle distribution function incoming in the next step
-    * @param[in]       d_neighborsFlag   Neighbors flags
+    * @param[in]       incomingLocalf    Particle distribution function incoming in the next step
+    * @param[in]       neighborsFlag     Neighbors flags
     * @param[in]       neighborsIdx      Neighbors Indices
     * @param[in]       t                 Lattice time 
     */
   template<typename PRECISION, int NUMVELOCITIES>
-  __device__ void storeReconstructedGasf(const unsigned int idx, PRECISION* d_f, PRECISION* d_incomingLocalf, uint8_t* d_neighborsFlag, const unsigned int* neighborsIdx, const unsigned long int t)
+  __device__ void storeReconstructedGasf(const unsigned int idx, PRECISION* d_f, PRECISION* incomingLocalf, uint8_t* neighborsFlag, const unsigned int* neighborsIdx, const unsigned long int t)
   {
+    // TODO correct index
     for (int i = 1; i < NUMVELOCITIES; i += 2)
     {
-      if (d_neighborsFlag[i] == FLB::CT_GAS) d_f[idx + FLB::d_N * (t%2ul ? i : i + 1)] = d_incomingLocalf[i];
-      if (d_neighborsFlag[i + 1] == FLB::CT_GAS) d_f[neighborsIdx[i] + FLB::d_N * (t%2ul ? i + 1 : i)] = d_incomingLocalf[i + 1];
+      if (neighborsFlag[i] == FLB::CT_GAS) d_f[idx + FLB::d_N * (t%2ul ? i : i + 1)] = incomingLocalf[i];
+      if (neighborsFlag[i + 1] == FLB::CT_GAS) d_f[neighborsIdx[i] + FLB::d_N * (t%2ul ? i + 1 : i)] = incomingLocalf[i + 1];
     }
   }
 }

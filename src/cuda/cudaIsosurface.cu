@@ -18,7 +18,6 @@ __device__ float2 FLB::getInterpolatedPoint(const float2 p0, const float2 p1, co
   const float aux = (isoValue - value0) / (value1 - value0);
   const float aux2 = (1.0f - aux);
   return  {aux2 * p0.x + aux * p1.x, aux2 * p0.y + aux * p1.y};
-
 }
 
 __device__ void FLB::drawLine(float2 p0, float2 p1, float2 pixelsTextPerNode, const float xOffset, const float yOffset, cudaSurfaceObject_t d_SurfaceTexture, const unsigned int height)

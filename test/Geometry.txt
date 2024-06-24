@@ -10,11 +10,11 @@ TYPE_DOMAIN = 2D
 # If it is a 2D problem the coordinate z must be 0
 
 POINT(1) = (0, 0, 0)
-POINT(2) = (2, 0, 0)
+POINT(2) = (20, 0, 0)
 #POINT(3) = (1, -0.2, 0)
 
 # Size (meters) between two consecutive points fo the mesh. The size is equal in all directions 
-SIZE = 0.1
+SIZE = 0.025
 
 ##### DIMENSIONS OF THE CROSS DRAINAGE WORK (CDW)
 
@@ -29,7 +29,7 @@ CDW(1).height = 1
 CDW(1).width = 1 
 
 # Radius in meters. Only used when the shape is CIRCLE
-CDW(1).radius = 0.2
+CDW(1).radius = 1.0
 
 # Separation between CDW in meters. It is the distance between consecutive centers (Only used in 3D)
 SEPARATION = 2
